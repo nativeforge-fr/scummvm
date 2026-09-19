@@ -284,16 +284,29 @@ private:
 	void setupImgScripts();
 	void loadStaticData();
 
-	// Widescreen standalone: in-game language switch. The base data (game_data,
-	// French) is shared; each other language provides an overlay under
-	// lang/<code>/ that SearchMan searches with higher priority. changeLanguage()
-	// swaps the overlay and reloads all language-dependent data live.
+	// Widescreen standalone: in-game language switch with SEPARATE text and
+	// audio languages. The base data (game_data, French) is shared; each other
+	// language provides overlays under lang/<code>/ that SearchMan searches with
+	// higher priority:
+	//   text_datasv/  + text_install/  -> follow the TEXT language (_currentLanguage):
+	//        messages/dat, documents, dialog text (GTO), object/menu images, fonts
+	//   audio_datasv/                  -> follows the AUDIO language (_audioLanguage):
+	//        voices (DIAL), dubbed cinematics (SC_TRANS)
 	Common::FSNode _gamePath;
-	void applyLanguageOverlay(Common::Language lang);
-	void changeLanguage(Common::Language lang);
+	Common::Language _audioLanguage;
+	void applyLanguageOverlays();                 // mount text+audio overlays for the current pair
+	void reloadTextData();                        // reload every TEXT-language-dependent resource live
+	void changeTextLanguage(Common::Language lang);
+	void changeAudioLanguage(Common::Language lang);
 	static const char *languageCode(Common::Language lang);   // "en","de","zh",... or nullptr for base FR
-	static const char *languageLabel(Common::Language lang);  // "Français","English",...
+	static const char *languageLabel(Common::Language lang);  // ASCII language name
 	static Common::Language nextLanguage(Common::Language lang); // cycle through available languages
+	// Localized UI labels for the custom menu entries, in the current TEXT language.
+	const char *uiLabelFilter() const;
+	const char *uiLabelVoiceLang() const;
+	const char *uiLabelTextLang() const;
+	const char *uiLabelOnOff(bool on) const;
+	const char *languageNameLocalized(Common::Language named) const; // name of 'named' in the current text language
 
 	void syncOmni3DSettings();
 	void syncSoundSettings() override;

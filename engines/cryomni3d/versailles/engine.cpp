@@ -44,6 +44,10 @@
 namespace CryOmni3D {
 namespace Versailles {
 
+// Widescreen standalone helpers, defined at the end of this file.
+static Common::FSNode childCaseless(const Common::FSNode &parent, const Common::String &name);
+static Common::Language parseLanguageCode(const Common::String &code, Common::Language fallback);
+
 const FixedImageConfiguration CryOmni3DEngine_Versailles::kFixedImageConfiguration = {
 	45, 223, 243, 238, 226, 198, 136, 145, 99, 113,
 	470
@@ -51,6 +55,7 @@ const FixedImageConfiguration CryOmni3DEngine_Versailles::kFixedImageConfigurati
 
 CryOmni3DEngine_Versailles::CryOmni3DEngine_Versailles(OSystem *syst,
 		const CryOmni3DGameDescription *gamedesc) : CryOmni3DEngine(syst, gamedesc),
+	_audioLanguage(gamedesc->desc.language),
 	_mainPalette(nullptr), _cursorPalette(nullptr), _transparentPaletteMap(nullptr),
 	_transparentSrcStart(uint(-1)), _transparentSrcStop(uint(-1)), _transparentDstStart(uint(-1)),
 	_transparentDstStop(uint(-1)), _transparentNewStart(uint(-1)), _transparentNewStop(uint(-1)),
@@ -120,30 +125,25 @@ void CryOmni3DEngine_Versailles::initializePath(const Common::FSNode &gamePath) 
 Common::Error CryOmni3DEngine_Versailles::run() {
 	CryOmni3DEngine::run();
 
-	// Widescreen standalone: apply the persisted language choice (if any) before
-	// loading any language-dependent data. The base game_data is French; other
-	// languages are mounted as an overlay under lang/<code>/.
+	// Widescreen standalone: apply the persisted TEXT and AUDIO language choices
+	// (independent) before loading any language-dependent data. The base
+	// game_data is French; other languages are mounted as overlays under
+	// lang/<code>/ (text_datasv + text_install for text, audio_datasv for audio).
 	if (ConfMan.hasKey("versailles_language")) {
-		Common::String langCode = ConfMan.get("versailles_language");
-		if (langCode == "en") {
-			setCurrentLanguage(Common::EN_ANY);
-		} else if (langCode == "de") {
-			setCurrentLanguage(Common::DE_DEU);
-		} else if (langCode == "zh") {
-			setCurrentLanguage(Common::ZH_TWN);
-		} else {
-			setCurrentLanguage(Common::FR_FRA);
-		}
+		setCurrentLanguage(parseLanguageCode(ConfMan.get("versailles_language"), getLanguage()));
 	}
-	applyLanguageOverlay(getLanguage());
+	if (ConfMan.hasKey("versailles_audio_language")) {
+		_audioLanguage = parseLanguageCode(ConfMan.get("versailles_audio_language"), _audioLanguage);
+	}
+	applyLanguageOverlays();
 
 	// First thing, load all data that was originally in the executable
 	// We don't need anything prepared for that
 	loadStaticData();
 
 	_dialogsMan.init(138, _messages[22]);
-	// Keep voice-filename padding in sync with the (possibly persisted) language.
-	_dialogsMan.setPadAudioFileName(getLanguage() != Common::EN_ANY);
+	// Keep voice-filename padding in sync with the (possibly persisted) audio language.
+	_dialogsMan.setPadAudioFileName(_audioLanguage != Common::EN_ANY);
 	_gameVariables.resize(GameVariables::kMax);
 	_omni3dMan.init(75. / 180. * M_PI);
 
@@ -2066,62 +2066,70 @@ Common::Language CryOmni3DEngine_Versailles::nextLanguage(Common::Language lang)
 	}
 }
 
-void CryOmni3DEngine_Versailles::applyLanguageOverlay(Common::Language lang) {
-	// Drop any previously mounted overlay.
-	if (SearchMan.hasArchive("versailles_lang_data")) {
-		SearchMan.remove("versailles_lang_data");
+static Common::Language parseLanguageCode(const Common::String &code, Common::Language fallback) {
+	if (code == "fr") {
+		return Common::FR_FRA;
+	} else if (code == "en") {
+		return Common::EN_ANY;
+	} else if (code == "de") {
+		return Common::DE_DEU;
+	} else if (code == "zh") {
+		return Common::ZH_TWN;
 	}
-	if (SearchMan.hasArchive("versailles_lang_install")) {
-		SearchMan.remove("versailles_lang_install");
+	return fallback;
+}
+
+// Mount a lang/<code>/<subdir> as a SearchMan directory under a stable name so
+// it can be swapped later. Absent directories are simply skipped.
+void CryOmni3DEngine_Versailles::applyLanguageOverlays() {
+	static const char *const kNames[] = {
+		"versailles_text_datasv", "versailles_text_install", "versailles_audio_datasv"
+	};
+	for (int i = 0; i < 3; i++) {
+		if (SearchMan.hasArchive(kNames[i])) {
+			SearchMan.remove(kNames[i]);
+		}
 	}
 
-	const char *code = languageCode(lang);
-	if (!code) {
-		// French == base data: nothing to overlay.
-		return;
+	// Text overlay (messages come from the .dat, but documents, dialog text,
+	// menu/object images and fonts live in text_datasv/ + text_install/).
+	const char *textCode = languageCode(_currentLanguage);
+	if (textCode) {
+		Common::FSNode root = childCaseless(childCaseless(_gamePath, "lang"), textCode);
+		Common::FSNode td = childCaseless(root, "text_datasv");
+		if (td.exists()) {
+			SearchMan.addDirectory("versailles_text_datasv", td, 100, 4, false);
+		}
+		Common::FSNode ti = childCaseless(root, "text_install");
+		if (ti.exists()) {
+			SearchMan.addDirectory("versailles_text_install", ti, 100, 3, false);
+		}
 	}
 
-	Common::FSNode langRoot = childCaseless(childCaseless(_gamePath, "lang"), code);
-	if (!langRoot.exists()) {
-		warning("Language overlay '%s' not found; keeping base (French) data", code);
-		return;
-	}
-	// Higher priority (100) than the base directories (0) so overlay files win.
-	Common::FSNode datasv = childCaseless(langRoot, "datas_v");
-	if (datasv.exists()) {
-		SearchMan.addDirectory("versailles_lang_data", datasv, 100, 4, false);
-	}
-	Common::FSNode installData = childCaseless(childCaseless(langRoot, "install"), "data");
-	if (installData.exists()) {
-		SearchMan.addDirectory("versailles_lang_install", installData, 100, 3, false);
+	// Audio overlay (voices + dubbed cinematics).
+	const char *audioCode = languageCode(_audioLanguage);
+	if (audioCode) {
+		Common::FSNode root = childCaseless(childCaseless(_gamePath, "lang"), audioCode);
+		Common::FSNode ad = childCaseless(root, "audio_datasv");
+		if (ad.exists()) {
+			SearchMan.addDirectory("versailles_audio_datasv", ad, 100, 4, false);
+		}
 	}
 }
 
-void CryOmni3DEngine_Versailles::changeLanguage(Common::Language lang) {
-	if (lang == getLanguage()) {
-		return;
-	}
-
-	setCurrentLanguage(lang);
-	applyLanguageOverlay(lang);
-
-	// Persist the choice so the next launch starts in this language.
-	const char *code = languageCode(lang);
-	ConfMan.set("versailles_language", code ? code : "fr");
-	ConfMan.flushToDisk();
-
-	// Reload every language-dependent resource live. On-demand assets (voices,
-	// cinematics, localized images) are picked up through SearchMan, which we
-	// already re-pointed above, so only the preloaded data needs refreshing.
+void CryOmni3DEngine_Versailles::reloadTextData() {
+	// Reload every TEXT-language-dependent resource live. On-demand assets
+	// (voices, cinematics, localized images) come through SearchMan, already
+	// re-pointed, so only the preloaded data needs refreshing.
 	loadStaticData();     // messages, localized filenames, painting titles, subtitles
-	setupFonts();         // Latin vs CJK fonts
+	setupFonts();         // Latin vs CJK fonts follow the text language
 	// NB: do NOT call setupObjects() here — it appends ~50 objects without
 	// clearing (would overflow the inventory and crash). Object names are
 	// _messages[] indices, so they follow the reloaded messages automatically.
 	_dialogsMan.init(138, _messages[22]);
-	// Voice filenames are padded to 8.3 with underscores for every dump except
-	// the (unpadded) English one; keep this in sync with the active language.
-	_dialogsMan.setPadAudioFileName(getLanguage() != Common::EN_ANY);
+	// Dialog text (GTO) follows the text language; voice names inside it use the
+	// audio language's padding.
+	_dialogsMan.setPadAudioFileName(_audioLanguage != Common::EN_ANY);
 	_dialogsMan.loadGTO(getFilePath(kFileTypeGTO, _localizedFilenames[LocalizedFilenames::kDialogs]));
 
 	_docManager.init(&_sprites, &_fontManager, &_messages, this,
@@ -2129,6 +2137,98 @@ void CryOmni3DEngine_Versailles::changeLanguage(Common::Language lang) {
 	                 getFilePath(kFileTypeText, getFeatures() & GF_VERSAILLES_LINK_LOCALIZED
 	                             ? _localizedFilenames[LocalizedFilenames::kLinksDocs]
 	                             : Common::String("lien_doc.txt")));
+}
+
+void CryOmni3DEngine_Versailles::changeTextLanguage(Common::Language lang) {
+	if (lang == _currentLanguage) {
+		return;
+	}
+	setCurrentLanguage(lang);
+	applyLanguageOverlays();
+
+	const char *code = languageCode(lang);
+	ConfMan.set("versailles_language", code ? code : "fr");
+	ConfMan.flushToDisk();
+
+	reloadTextData();
+}
+
+void CryOmni3DEngine_Versailles::changeAudioLanguage(Common::Language lang) {
+	if (lang == _audioLanguage) {
+		return;
+	}
+	_audioLanguage = lang;
+	applyLanguageOverlays();
+
+	const char *code = languageCode(lang);
+	ConfMan.set("versailles_audio_language", code ? code : "fr");
+	ConfMan.flushToDisk();
+
+	// Only the voice-name padding needs updating; voices/cinematics are loaded
+	// on demand through the re-pointed SearchMan overlay.
+	_dialogsMan.setPadAudioFileName(_audioLanguage != Common::EN_ANY);
+}
+
+// ---- Localized UI labels for the custom menu entries (current text language) ----
+// ASCII only, so they render with any font (including the CJK menu font).
+
+const char *CryOmni3DEngine_Versailles::uiLabelFilter() const {
+	switch (getLanguage()) {
+	case Common::FR_FRA: return "Filtrage image";
+	case Common::DE_DEU: return "Bildfilter";
+	default:             return "Image filter"; // EN + ZH fallback
+	}
+}
+
+const char *CryOmni3DEngine_Versailles::uiLabelVoiceLang() const {
+	switch (getLanguage()) {
+	case Common::FR_FRA: return "Langue des voix";
+	case Common::DE_DEU: return "Sprache Stimmen";
+	default:             return "Voice language";
+	}
+}
+
+const char *CryOmni3DEngine_Versailles::uiLabelTextLang() const {
+	switch (getLanguage()) {
+	case Common::FR_FRA: return "Langue des textes";
+	case Common::DE_DEU: return "Sprache Texte";
+	default:             return "Text language";
+	}
+}
+
+const char *CryOmni3DEngine_Versailles::uiLabelOnOff(bool on) const {
+	switch (getLanguage()) {
+	case Common::FR_FRA: return on ? "OUI" : "NON";
+	case Common::DE_DEU: return on ? "JA" : "NEIN";
+	default:             return on ? "ON" : "OFF";
+	}
+}
+
+const char *CryOmni3DEngine_Versailles::languageNameLocalized(Common::Language named) const {
+	// Name of 'named' written in the current text language (ASCII, font-safe).
+	switch (getLanguage()) {
+	case Common::FR_FRA:
+		switch (named) {
+		case Common::EN_ANY: return "Anglais";
+		case Common::DE_DEU: return "Allemand";
+		case Common::ZH_TWN: return "Chinois";
+		default:             return "Francais";
+		}
+	case Common::DE_DEU:
+		switch (named) {
+		case Common::EN_ANY: return "Englisch";
+		case Common::DE_DEU: return "Deutsch";
+		case Common::ZH_TWN: return "Chinesisch";
+		default:             return "Franzoesisch";
+		}
+	default: // EN + ZH
+		switch (named) {
+		case Common::EN_ANY: return "English";
+		case Common::DE_DEU: return "German";
+		case Common::ZH_TWN: return "Chinese";
+		default:             return "French";
+		}
+	}
 }
 
 } // End of namespace Versailles
