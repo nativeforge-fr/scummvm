@@ -2066,6 +2066,20 @@ Common::Language CryOmni3DEngine_Versailles::nextLanguage(Common::Language lang)
 	}
 }
 
+Common::Language CryOmni3DEngine_Versailles::nextAudioLanguage(Common::Language lang) {
+	// Chinese has no dub (its "voices" are the English track), so the audio
+	// cycle skips it: French -> English -> German -> French.
+	switch (lang) {
+	case Common::FR_FRA:
+		return Common::EN_ANY;
+	case Common::EN_ANY:
+		return Common::DE_DEU;
+	case Common::DE_DEU:
+	default:
+		return Common::FR_FRA;
+	}
+}
+
 static Common::Language parseLanguageCode(const Common::String &code, Common::Language fallback) {
 	if (code == "fr") {
 		return Common::FR_FRA;

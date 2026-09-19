@@ -300,7 +300,8 @@ private:
 	void changeAudioLanguage(Common::Language lang);
 	static const char *languageCode(Common::Language lang);   // "en","de","zh",... or nullptr for base FR
 	static const char *languageLabel(Common::Language lang);  // ASCII language name
-	static Common::Language nextLanguage(Common::Language lang); // cycle through available languages
+	static Common::Language nextLanguage(Common::Language lang);      // text: FR->EN->DE->ZH->FR
+	static Common::Language nextAudioLanguage(Common::Language lang); // voices: FR->EN->DE->FR (no Chinese dub)
 	// Localized UI labels for the custom menu entries, in the current TEXT language.
 	const char *uiLabelFilter() const;
 	const char *uiLabelVoiceLang() const;

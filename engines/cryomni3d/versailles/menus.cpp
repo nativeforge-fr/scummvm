@@ -466,8 +466,8 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				selectedMsg = 0;
 				waitMouseRelease();
 			} else if (selectedMsg == 1001) {
-				// Cycle the VOICE (audio) language: voices + dubbed cinematics.
-				changeAudioLanguage(nextLanguage(_audioLanguage));
+				// Cycle the VOICE (audio) language (no Chinese dub).
+				changeAudioLanguage(nextAudioLanguage(_audioLanguage));
 				drawState = 1;
 				selectedMsg = 0;
 				waitMouseRelease();
