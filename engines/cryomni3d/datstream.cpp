@@ -106,6 +106,11 @@ void DATSeekableStream::readString16Array16(Common::StringArray &array) {
 	uint16 items;
 	uint16 i;
 
+	// Populate the array fresh: clear any previous content so this can be
+	// called again (widescreen standalone reloads static data on a live
+	// language switch).
+	array.clear();
+
 	items = readUint16LE();
 
 	array.reserve(items);

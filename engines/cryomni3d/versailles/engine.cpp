@@ -142,6 +142,8 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 	loadStaticData();
 
 	_dialogsMan.init(138, _messages[22]);
+	// Keep voice-filename padding in sync with the (possibly persisted) language.
+	_dialogsMan.setPadAudioFileName(getLanguage() != Common::EN_ANY);
 	_gameVariables.resize(GameVariables::kMax);
 	_omni3dMan.init(75. / 180. * M_PI);
 
@@ -2113,8 +2115,13 @@ void CryOmni3DEngine_Versailles::changeLanguage(Common::Language lang) {
 	// already re-pointed above, so only the preloaded data needs refreshing.
 	loadStaticData();     // messages, localized filenames, painting titles, subtitles
 	setupFonts();         // Latin vs CJK fonts
-	setupObjects();       // object names come from _messages
+	// NB: do NOT call setupObjects() here — it appends ~50 objects without
+	// clearing (would overflow the inventory and crash). Object names are
+	// _messages[] indices, so they follow the reloaded messages automatically.
 	_dialogsMan.init(138, _messages[22]);
+	// Voice filenames are padded to 8.3 with underscores for every dump except
+	// the (unpadded) English one; keep this in sync with the active language.
+	_dialogsMan.setPadAudioFileName(getLanguage() != Common::EN_ANY);
 	_dialogsMan.loadGTO(getFilePath(kFileTypeGTO, _localizedFilenames[LocalizedFilenames::kDialogs]));
 
 	_docManager.init(&_sprites, &_fontManager, &_messages, this,
