@@ -68,6 +68,12 @@ namespace CryOmni3D {
 // engine after initGraphics().
 extern int g_screen2DOffsetX;
 
+// When true, full-width 2D content gets the ambient blurred side bars; when
+// false (default), the side bars cleanly extend the image's edge column
+// (crisp, no blur/dim). Targeted per file: set true only for the main cinematic
+// video(s), false for logos/title/stills.
+extern bool g_screen2DBlurBars;
+
 // Blit a 640-space 2D surface centered on the (possibly wider) physical screen.
 void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h);
 

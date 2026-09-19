@@ -317,6 +317,10 @@ void CryOmni3DEngine::waitMouseRelease() {
 // initGraphics(); 0 means no widescreen (native 640 layout).
 int g_screen2DOffsetX = 0;
 
+// Side-bar style for full-width 2D content: false = crisp edge extension
+// (logos, title, stills), true = ambient blur (main cinematic videos).
+bool g_screen2DBlurBars = false;
+
 // --- Widescreen "ambient" blurred side bars (TikTok/Shorts-style background) ---
 // The game renders in 8-bit paletted mode, so we blur in RGB (via the current
 // palette) and remap to the nearest palette index using a precomputed LUT.
@@ -351,6 +355,27 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 	int screenH = g_system->getHeight();
 	if (g_screen2DOffsetX <= 0 || sw <= 0 || sh <= 0)
 		return;
+
+	// Crisp edge-extension path (logos, title, stills): repeat the exact source
+	// edge column per row. No palette LUT / thumbnail needed.
+	if (!g_screen2DBlurBars) {
+		static byte cbar[288 * 512];
+		for (int pass = 0; pass < 2; pass++) {
+			int x0 = (pass == 0) ? 0 : (g_screen2DOffsetX + contentW);
+			int x1 = (pass == 0) ? g_screen2DOffsetX : screenW;
+			if (x1 <= x0 || screenH > 512 || (x1 - x0) > 288)
+				continue;
+			int bw = x1 - x0;
+			int edgeX = (pass == 0) ? 0 : (sw - 1);
+			for (int y = 0; y < screenH; y++) {
+				int sy = y * sh / screenH;
+				if (sy >= sh) sy = sh - 1;
+				memset(cbar + (size_t)y * bw, src[sy * pitch + edgeX], bw);
+			}
+			g_system->copyRectToScreen(cbar, bw, x0, 0, bw, screenH);
+		}
+		return;
+	}
 
 	byte pal[768];
 	g_system->getPaletteManager()->grabPalette(pal, 0, 256);
@@ -394,41 +419,6 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 		if (x1 <= x0 || screenH > 512 || (x1 - x0) > 288)
 			continue;
 		int bw = x1 - x0;
-
-		// Adaptive: measure the HORIZONTAL detail of the image edge this bar
-		// samples. Low horizontal detail (solid color, vertical gradient, plain
-		// logo/title backgrounds) -> extend the exact edge column per row (clean,
-		// seamless, no blur/dimming). Only genuinely detailed content (the main
-		// cinematic, scenes) keeps the ambient blur.
-		int tu0 = x0 * TW / screenW, tu1 = x1 * TW / screenW;
-		if (tu1 <= tu0) tu1 = tu0 + 1;
-		if (tu1 > TW) tu1 = TW;
-		long hvar = 0;
-		int hrows = 0;
-		for (int ty = 0; ty < TH; ty++) {
-			int rmn[3] = {255, 255, 255}, rmx[3] = {0, 0, 0};
-			for (int tx = tu0; tx < tu1; tx++) {
-				const byte *t = &thumb[(ty * TW + tx) * 3];
-				for (int c = 0; c < 3; c++) {
-					if (t[c] < rmn[c]) rmn[c] = t[c];
-					if (t[c] > rmx[c]) rmx[c] = t[c];
-				}
-			}
-			hvar += (rmx[0] - rmn[0]) + (rmx[1] - rmn[1]) + (rmx[2] - rmn[2]);
-			hrows++;
-		}
-		int avgHVar = hvar / (hrows ? hrows : 1);
-		if (avgHVar < 30) {
-			int edgeX = (pass == 0) ? 0 : (sw - 1);
-			for (int y = 0; y < screenH; y++) {
-				int sy = y * sh / screenH;
-				if (sy >= sh) sy = sh - 1;
-				byte idx = src[sy * pitch + edgeX];
-				memset(bar + (size_t)y * bw, idx, bw);
-			}
-			g_system->copyRectToScreen(bar, bw, x0, 0, bw, screenH);
-			continue;
-		}
 
 		for (int y = 0; y < screenH; y++) {
 			float fv = (float)y / screenH * (TH - 1);

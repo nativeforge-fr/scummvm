@@ -1873,12 +1873,20 @@ void CryOmni3DEngine_Versailles::playInGameVideo(const Common::Path &filename,
 void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filename) {
 	Common::HashMap<Common::String, Common::Array<SubtitleEntry> >::const_iterator it;
 
+	// Widescreen side bars: only the cinematic movies (*_vf) get the ambient
+	// blur; the intro logos (logo.hnm, jvclogo.hnm) and everything else keep
+	// crisp edge-extended bars.
+	Common::String lf = filename;
+	lf.toLowercase();
+	g_screen2DBlurBars = lf.contains("_vf");
+
 	if (!showSubtitles() ||
 	        (it = _subtitles.find(filename)) == _subtitles.end() ||
 	        it->_value.size() == 0) {
 		// No subtitle, don't try to handle them frame by frame
 		// Videos are like music because if you mute music in game it will mute videos soundtracks
 		playHNM(getFilePath(kFileTypeTransScene, filename), Audio::Mixer::kMusicSoundType);
+		g_screen2DBlurBars = false;
 		return;
 	}
 
@@ -1903,6 +1911,7 @@ void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filena
 
 	clearKeys();
 	unlockPalette();
+	g_screen2DBlurBars = false;
 }
 
 void CryOmni3DEngine_Versailles::drawVideoSubtitles(uint frameNum) {
