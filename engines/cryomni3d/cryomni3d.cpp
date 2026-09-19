@@ -356,24 +356,24 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 	if (g_screen2DOffsetX <= 0 || sw <= 0 || sh <= 0)
 		return;
 
-	// Crisp edge-extension path (logos, title, stills): repeat the exact source
-	// edge column per row. No palette LUT / thumbnail needed.
+	// Crisp path (logos, title, stills): fill both side bars with ONE solid
+	// color = the dominant color of the image (most frequent palette index).
+	// E.g. the plain white intro screen gives solid white bars.
 	if (!g_screen2DBlurBars) {
-		static byte cbar[288 * 512];
-		for (int pass = 0; pass < 2; pass++) {
-			int x0 = (pass == 0) ? 0 : (g_screen2DOffsetX + contentW);
-			int x1 = (pass == 0) ? g_screen2DOffsetX : screenW;
-			if (x1 <= x0 || screenH > 512 || (x1 - x0) > 288)
-				continue;
-			int bw = x1 - x0;
-			int edgeX = (pass == 0) ? 0 : (sw - 1);
-			for (int y = 0; y < screenH; y++) {
-				int sy = y * sh / screenH;
-				if (sy >= sh) sy = sh - 1;
-				memset(cbar + (size_t)y * bw, src[sy * pitch + edgeX], bw);
-			}
-			g_system->copyRectToScreen(cbar, bw, x0, 0, bw, screenH);
+		int hist[256];
+		memset(hist, 0, sizeof(hist));
+		for (int y = 0; y < sh; y += 2) {
+			const byte *row = src + y * pitch;
+			for (int x = 0; x < sw; x += 2)
+				hist[row[x]]++;
 		}
+		int domIdx = 0, domCnt = -1;
+		for (int i = 0; i < 256; i++)
+			if (hist[i] > domCnt) { domCnt = hist[i]; domIdx = i; }
+		g_system->fillScreen(Common::Rect(0, 0, g_screen2DOffsetX, screenH), domIdx);
+		int rightStart = g_screen2DOffsetX + contentW;
+		if (rightStart < screenW)
+			g_system->fillScreen(Common::Rect(rightStart, 0, screenW, screenH), domIdx);
 		return;
 	}
 
