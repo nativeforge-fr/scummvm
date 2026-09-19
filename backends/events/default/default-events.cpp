@@ -348,7 +348,11 @@ Common::Keymap *DefaultEventManager::getGlobalKeymap() {
 	Action *act;
 	act = new Action("MENU", _("Global Main Menu"));
 	act->addDefaultInputMapping("C+F5");
+#ifndef VERSAILLES_STANDALONE
+	// Standalone Versailles: don't let the controller's Start button open the
+	// ScummVM menu (Start opens the in-game toolbar instead, via the engine keymap).
 	act->addDefaultInputMapping("JOY_START");
+#endif
 	act->setEvent(EVENT_MAINMENU);
 	globalKeymap->addAction(act);
 

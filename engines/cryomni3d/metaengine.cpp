@@ -29,6 +29,10 @@
 #include "common/textconsole.h"
 #include "common/translation.h"
 
+#include "backends/keymapper/action.h"
+#include "backends/keymapper/keymap.h"
+#include "backends/keymapper/standard-actions.h"
+
 #include "cryomni3d/cryomni3d.h"
 
 #ifdef ENABLE_VERSAILLES
@@ -75,6 +79,8 @@ public:
 	bool hasFeature(MetaEngineFeature f) const override;
 	Common::Error createInstance(OSystem *syst, Engine **engine, const CryOmni3DGameDescription *desc) const override;
 
+	Common::Array<Common::Keymap *> initKeymaps(const char *target) const override;
+
 	SaveStateList listSaves(const char *target) const override;
 	int getMaximumSaveSlot() const override { return 999; }
 	bool removeSaveState(const char *target, int slot) const override;
@@ -93,6 +99,40 @@ bool CryOmni3DMetaEngine::hasFeature(MetaEngineFeature f) const {
 		(f == kSupportsListSaves)
 		|| (f == kSupportsLoadingDuringStartup)
 		|| (f == kSupportsDeleteSave);
+}
+
+Common::Array<Common::Keymap *> CryOmni3DMetaEngine::initKeymaps(const char *target) const {
+	using namespace Common;
+
+	// Game keymap so the title is fully playable with a controller. Only the
+	// joystick is mapped here; the real mouse and keyboard keep passing through
+	// untouched (the engine reads them directly).
+	Keymap *keymap = new Keymap(Keymap::kKeymapTypeGame, "cryomni3d", "Versailles 1685");
+	Action *act;
+
+	// Left stick already moves the virtual mouse pointer (global keymap).
+	act = new Action(kStandardActionLeftClick, _("Left click"));
+	act->setLeftClickEvent();
+	act->addDefaultInputMapping("JOY_A");
+	keymap->addAction(act);
+
+	// Right click opens the in-game toolbar (options, inventory, documentation).
+	// Start also opens it (instead of the ScummVM menu, which is unbound from the
+	// controller in the standalone build).
+	act = new Action(kStandardActionRightClick, _("Right click (in-game toolbar)"));
+	act->setRightClickEvent();
+	act->addDefaultInputMapping("JOY_B");
+	act->addDefaultInputMapping("JOY_START");
+	keymap->addAction(act);
+
+	// Skip / advance dialogues and videos (the engine skips on SPACE).
+	act = new Action("SKIP", _("Skip dialogue / video"));
+	act->setKeyEvent(KeyState(KEYCODE_SPACE, ASCII_SPACE));
+	act->addDefaultInputMapping("JOY_X");
+	act->addDefaultInputMapping("JOY_Y");
+	keymap->addAction(act);
+
+	return Keymap::arrayOf(keymap);
 }
 
 SaveStateList CryOmni3DMetaEngine::listSaves(const char *target) const {
