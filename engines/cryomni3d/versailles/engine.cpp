@@ -163,7 +163,10 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 
 	_countdownSurface.create(40, 15, Graphics::PixelFormat::createFormatCLUT8());
 
-	initGraphics(640, 480);
+	// Widescreen hor+ (VERSAILLES_STANDALONE): widen the screen to 864x480
+	// (~16:9). The OMNI3D panorama fills the full width; 4:3 content
+	// (menus, fixed images, videos, toolbar) is drawn left-aligned for now.
+	initGraphics(864, 480);
 	setMousePos(Common::Point(320, 200));
 
 	syncSoundSettings();

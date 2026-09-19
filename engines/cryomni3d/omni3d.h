@@ -66,11 +66,14 @@ private:
 	double _alphaMin, _alphaMax;
 	double _betaMin, _betaMax;
 
-	int _imageCoords[2544];
-	double _squaresCoords[31][21];
+	// Widescreen hor+ (VERSAILLES_STANDALONE): horizontal tile count widened
+	// from 40 to O3D_TILES_X while vertical stays 30. Arrays sized for the
+	// widest configuration. See omni3d.cpp for the O3D_* constants.
+	int _imageCoords[3520];      // >= 2*(O3D_TILES_X+1)*(O3D_TILES_Y+1)+2 = 3412 (mirror writes reach k+offset+1); margin
+	double _squaresCoords[31][28]; // [O3D_TILES_Y+1][O3D_HALF_X+1] = [31][28]
 	double _hypothenusesH[31];
 	double _anglesH[31];
-	double _oppositeV[21];
+	double _oppositeV[28];         // [O3D_HALF_X+1]
 	double _helperValue;
 
 	bool _dirty;
