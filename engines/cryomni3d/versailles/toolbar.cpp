@@ -425,11 +425,17 @@ bool Toolbar::displayToolbar(const Graphics::Surface *original) {
 	_parentMustRedraw = false;
 	_shortExit = false;
 
-	// Prepare the background of the toolbar by making it translucent
-	// Get the lowest part of the image
-	const Graphics::Surface subset = original->getSubArea(Common::Rect(0, original->h - _bgSurface.h,
-	                                 _bgSurface.w, original->h));
-	_engine->makeTranslucent(_bgSurface, subset);
+	// Prepare the background of the toolbar by making it translucent.
+	// Get the lowest part of the image. The HUD is full physical width (864),
+	// but the source may be narrower (a fixed image / painting close-up), so
+	// only process the overlapping region — makeTranslucent asserts that source
+	// and destination have the same size.
+	int subW = MIN<int>((int)_bgSurface.w, (int)original->w);
+	int subH = MIN<int>((int)_bgSurface.h, (int)original->h);
+	const Graphics::Surface subset = original->getSubArea(
+	            Common::Rect(0, original->h - subH, subW, original->h));
+	Graphics::Surface bgArea = _bgSurface.getSubArea(Common::Rect(0, 0, subW, subH));
+	_engine->makeTranslucent(bgArea, subset);
 
 	// WORKAROUND: Reset the inventory status at init to let sprites highlighted until toolbar is hidden
 	_inventorySelected = uint(-1);
