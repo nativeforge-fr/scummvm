@@ -153,7 +153,8 @@ void CryOmni3DEngine::playHNM(const Common::Path &filepath, Audio::Mixer::SoundT
 			}
 		}
 		g_system->updateScreen();
-		g_system->delayMillis(10);
+		// Finer loop delay for steadier video/animation frame pacing.
+		g_system->delayMillis(5);
 
 		if (pollEvents() && checkKeysPressed()) {
 			skipVideo = true;

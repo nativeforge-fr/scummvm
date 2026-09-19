@@ -1431,9 +1431,12 @@ int CryOmni3DEngine_Versailles::handleWarp() {
 			xDelta >>= -_omni3dSpeed;
 			yDelta >>= -_omni3dSpeed;
 		}
-		// This correction factor is to slow down movements for modern CPUs
-		xDelta /= 5;
-		yDelta /= 5;
+		// This correction factor is to slow down movements for modern CPUs.
+		// Widescreen/smoothness: use a finer per-frame step (the loop also runs
+		// at a higher framerate below), so the panorama rotation is smoother than
+		// the original (which was tuned for period monitors). Same overall speed.
+		xDelta /= 10;
+		yDelta /= 10;
 		leftButtonPressed = (getCurrentMouseButton() == 1);
 
 		Common::Point mouseRev = _omni3dMan.mapMouseCoords(mouse);
@@ -1484,8 +1487,10 @@ int CryOmni3DEngine_Versailles::handleWarp() {
 			}
 		}
 
-		// Slow down loop but after updating screen
-		g_system->delayMillis(10);
+		// Slow down loop but after updating screen. Higher framerate (5ms ~200fps
+		// cap) for smoother panorama rotation; paired with the finer per-frame
+		// step above so the overall rotation speed is unchanged.
+		g_system->delayMillis(5);
 	}
 	_canLoadSave = false;
 	showMouse(false);
