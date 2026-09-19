@@ -922,6 +922,11 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 	dstSurface.create(surface->w, surface->h, surface->format);
 	dstSurface.blitFrom(*surface);
 
+	// Horizontal bounds/centre derived from the actual surface width so the box
+	// is centred on the real view: 640 for 4:3 stills, 864 for the warp panorama.
+	const int msgMidX = (int)surface->w / 2;
+	const int msgRightLimit = (int)surface->w - 10;
+
 	_fontManager.setSurface(&dstSurface);
 	_fontManager.setCurrentFont(params.font);
 	_fontManager.setTransparentBackground(true);
@@ -945,13 +950,13 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 		rct = Common::Rect::center(pt.x, pt.y, width, height);
 		if (rct.left < 10) {
 			rct.left = 10;
-			if (pt.x < 320) {
+			if (pt.x < msgMidX) {
 				pt.x += 10;
 			}
 		}
-		if (rct.right >= 630) {
-			rct.right = 630;
-			if (pt.x > 320) {
+		if (rct.right >= msgRightLimit) {
+			rct.right = msgRightLimit;
+			if (pt.x > msgMidX) {
 				pt.x -= 10;
 			}
 		}
@@ -967,7 +972,7 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 				pt.y -= 10;
 			}
 		}
-		if (rct.left == 10 && rct.top == 10 && rct.right == 630 && rct.bottom == 470) {
+		if (rct.left == 10 && rct.top == 10 && rct.right == msgRightLimit && rct.bottom == 470) {
 			tooLarge = true;
 		}
 		lineCount = _fontManager.getLinesCount(msg, rct.width() - 12);
@@ -1023,10 +1028,13 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 }
 
 void CryOmni3DEngine_Versailles::displayMessageBoxWarp(const Common::String &message) {
-	Common::Point mousePos = getMousePos();
+	// The warp background is the full-width (864) panorama, so position the
+	// message box in physical screen space (raw mouse), not 2D/pillarboxed space.
+	Common::Point mousePos = getRawMousePos();
 	mousePos += Common::Point(0, 32);
-	if (mousePos.x > 639) {
-		mousePos.x = 639;
+	int maxX = (int)g_system->getWidth() - 1;
+	if (mousePos.x > maxX) {
+		mousePos.x = maxX;
 	}
 	if (mousePos.y > 479) {
 		mousePos.y = 479;
