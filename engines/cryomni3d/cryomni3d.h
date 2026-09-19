@@ -74,12 +74,23 @@ extern int g_screen2DOffsetX;
 // video(s), false for logos/title/stills.
 extern bool g_screen2DBlurBars;
 
+// When true (crisp mode only), both side bars use the LEFT bar's chosen
+// dominant color instead of each bar sampling its own adjacent edge column.
+// Used for menus so the two bars always match. Restored by Screen2DBarsGuard.
+extern bool g_screen2DMirrorLeftBar;
+
 // RAII helper: force crisp (or blurred) side bars for the scope of a static
 // screen (menus, documentation, ...), restoring the previous mode on exit.
+// mirrorLeft (crisp only) copies the left bar's color onto the right bar.
 struct Screen2DBarsGuard {
 	bool _old;
-	explicit Screen2DBarsGuard(bool blur) : _old(g_screen2DBlurBars) { g_screen2DBlurBars = blur; }
-	~Screen2DBarsGuard() { g_screen2DBlurBars = _old; }
+	bool _oldMirror;
+	explicit Screen2DBarsGuard(bool blur, bool mirrorLeft = false)
+		: _old(g_screen2DBlurBars), _oldMirror(g_screen2DMirrorLeftBar) {
+		g_screen2DBlurBars = blur;
+		g_screen2DMirrorLeftBar = mirrorLeft;
+	}
+	~Screen2DBarsGuard() { g_screen2DBlurBars = _old; g_screen2DMirrorLeftBar = _oldMirror; }
 };
 
 // Blit a 640-space 2D surface centered on the (possibly wider) physical screen.

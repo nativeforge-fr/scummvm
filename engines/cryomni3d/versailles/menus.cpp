@@ -97,8 +97,9 @@ void CryOmni3DEngine_Versailles::drawMenuTitle(Graphics::ManagedSurface *surface
 }
 
 uint CryOmni3DEngine_Versailles::displayOptions() {
-	// Static menu screen (title / in-game options): crisp solid-color side bars.
-	Screen2DBarsGuard _barsGuard(false);
+	// Static menu screen (title / in-game options): crisp solid-color side bars,
+	// with the right bar mirroring the left bar's color so both sides match.
+	Screen2DBarsGuard _barsGuard(false, true);
 	Common::Array<int> menuEntries;
 	menuEntries.push_back(26);
 	menuEntries.push_back(27);
