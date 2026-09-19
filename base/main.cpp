@@ -102,6 +102,13 @@
 
 static bool launcherDialog() {
 
+#ifdef VERSAILLES_STANDALONE
+	// Standalone Versailles build: never show the ScummVM launcher (which is
+	// the only place the ScummVM logo is drawn). The bundled game is started
+	// directly via the auto-detect injection in processSettings().
+	return false;
+#endif
+
 	// Discard any command line options. Those that affect the graphics
 	// mode and the others (like bootparam etc.) should not
 	// blindly be passed to the first game launched from the launcher.
@@ -929,7 +936,13 @@ extern "C" int scummvm_main(int argc, const char * const argv[]) {
 				OSystem_PS3::spawnProcess(PREFIX "/scummvm.self", nullptr);
 			}
 #endif
+#ifdef VERSAILLES_STANDALONE
+			// Standalone Versailles build: quit when the game ends instead of
+			// returning to the ScummVM launcher.
+			break;
+#else
 			launcherDialog();
+#endif
 		}
 	}
 #ifdef USE_SDL_NET

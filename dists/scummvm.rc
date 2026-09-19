@@ -15,8 +15,13 @@
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "dists/win32/scummvm.exe.manifest"
 
 // Common resources
+#ifdef VERSAILLES_STANDALONE
+IDI_ICON               ICON    "icons/versailles.ico"
+IDI_COUNT              ICON    "icons/versailles.ico"
+#else
 IDI_ICON               ICON    "icons/scummvm.ico"
 IDI_COUNT              ICON    "icons/count.ico"
+#endif
 
 ID_GDF_XML             DATA    "dists/win32/scummvm.gdf.xml"
 
@@ -243,6 +248,18 @@ BEGIN
     BEGIN
         BLOCK "040904b0" // US English, Unicode
         BEGIN
+#ifdef VERSAILLES_STANDALONE
+            VALUE "Comments", "Versailles 1685 - Complot a la Cour du Roi Soleil\0"
+            VALUE "CompanyName", "Cryo Interactive Entertainment\0"
+            VALUE "FileDescription", "Versailles 1685\0"
+            VALUE "FileVersion", SCUMMVM_VERSION "\0"
+            VALUE "InternalName", "versailles\0"
+            VALUE "LegalCopyright", "Versailles 1685 \xA9 1996 Cryo Interactive\0"
+            VALUE "LegalTrademarks", "\0"
+            VALUE "OriginalFilename", "versailles.exe\0"
+            VALUE "ProductName", "Versailles 1685\0"
+            VALUE "ProductVersion", SCUMMVM_VERSION "\0"
+#else
             VALUE "Comments", "Look! A three headed monkey (TM)! .. Nice use of the TM!\0"
             VALUE "CompanyName", "scummvm.org\0"
             VALUE "FileDescription", "ScummVM: A free interpreter for numerous adventure games and role-playing games\0"
@@ -253,6 +270,7 @@ BEGIN
             VALUE "OriginalFilename", "scummvm.exe\0"
             VALUE "ProductName", "ScummVM\0"
             VALUE "ProductVersion", SCUMMVM_VERSION "\0"
+#endif
         END
     END
 

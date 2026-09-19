@@ -293,6 +293,12 @@ bool splash = false;
 #include "logo_data.h"
 
 void splashScreen() {
+#ifdef VERSAILLES_STANDALONE
+	// Standalone Versailles build: never show the ScummVM startup splash
+	// (orange background + ScummVM logo). Boot straight into the game.
+	splash = true;
+	return;
+#endif
 	Common::MemoryReadStream stream(logo_data, ARRAYSIZE(logo_data));
 
 	Image::BitmapDecoder bitmap;
