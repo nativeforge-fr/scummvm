@@ -61,6 +61,16 @@ class ImageDecoder;
  */
 namespace CryOmni3D {
 
+// Widescreen (hor+) support: the physical screen can be wider than the game's
+// native 640-wide 2D layout. 2D content (menus, videos, fixed images,
+// documentation, toolbar, dialogs) is drawn centered at this horizontal
+// offset; the OMNI3D panorama uses the full physical width. Set once by the
+// engine after initGraphics().
+extern int g_screen2DOffsetX;
+
+// Blit a 640-space 2D surface centered on the (possibly wider) physical screen.
+void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h);
+
 class DATSeekableStream;
 
 // Engine Debug Flags
@@ -118,7 +128,8 @@ public:
 	bool displayHLZ(const Common::Path &filepath, uint32 timeout = uint(-1));
 
 	bool pollEvents();
-	Common::Point getMousePos();
+	Common::Point getMousePos();       // returns 2D virtual-screen coords (physical - widescreen offset)
+	Common::Point getRawMousePos();    // returns raw physical coords (for the full-width OMNI3D panorama)
 	void setMousePos(const Common::Point &point);
 	uint getCurrentMouseButton() { return _lastMouseButton; }
 	Common::KeyState getNextKey();

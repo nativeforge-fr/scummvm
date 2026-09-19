@@ -165,8 +165,10 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 
 	// Widescreen hor+ (VERSAILLES_STANDALONE): widen the screen to 864x480
 	// (~16:9). The OMNI3D panorama fills the full width; 4:3 content
-	// (menus, fixed images, videos, toolbar) is drawn left-aligned for now.
+	// (menus, fixed images, videos, toolbar) is drawn centered (pillarboxed)
+	// via copyRectToScreen2D() with this horizontal offset.
 	initGraphics(864, 480);
+	g_screen2DOffsetX = (864 - 640) / 2; // 112
 	setMousePos(Common::Point(320, 200));
 
 	syncSoundSettings();
@@ -1403,7 +1405,10 @@ int CryOmni3DEngine_Versailles::handleWarp() {
 		uint movingCursor = uint(-1);
 
 		pollEvents();
-		Common::Point mouse = getMousePos();
+		// The OMNI3D panorama spans the full physical width: use raw coords.
+		Common::Point mouse = getRawMousePos();
+		// Right-edge scroll threshold scales with the physical width (width-100).
+		const int rightEdge = g_system->getWidth() - 100;
 
 		if (mouse.y < 100) {
 			movingCursor = 245;
@@ -1415,9 +1420,9 @@ int CryOmni3DEngine_Versailles::handleWarp() {
 		if (mouse.x < 100) {
 			movingCursor = 241;
 			xDelta = 100 - mouse.x;
-		} else if (mouse.x > 540) {
+		} else if (mouse.x > rightEdge) {
 			movingCursor = 228;
-			xDelta = 540 - mouse.x;
+			xDelta = rightEdge - mouse.x;
 		}
 		if (_omni3dSpeed > 0) {
 			xDelta <<= _omni3dSpeed;
@@ -1744,7 +1749,7 @@ void CryOmni3DEngine_Versailles::displayObject(const Common::String &imgName,
 		(this->*hook)(dstSurface);
 	}
 
-	g_system->copyRectToScreen(dstSurface.getPixels(), dstSurface.pitch, 0, 0,
+	copyRectToScreen2D(dstSurface.getPixels(), dstSurface.pitch, 0, 0,
 	                           dstSurface.w, dstSurface.h);
 	g_system->updateScreen();
 
@@ -1936,7 +1941,7 @@ void CryOmni3DEngine_Versailles::drawVideoSubtitles(uint frameNum) {
 	// Enable clipping to avoid refreshing text at every frame
 	setHNMClipping(Common::Rect(0, 0, 640, top));
 
-	g_system->copyRectToScreen(tmp.getPixels(), tmp.pitch, 0, top, tmp.w, tmp.h);
+	copyRectToScreen2D(tmp.getPixels(), tmp.pitch, 0, top, tmp.w, tmp.h);
 	g_system->updateScreen();
 }
 
