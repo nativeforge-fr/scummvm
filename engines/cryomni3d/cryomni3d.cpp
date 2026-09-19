@@ -470,7 +470,27 @@ void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h) 
 		// blurred version of the image instead of leaving stale content.
 		drawBlurredSideBars((const byte *)buf, pitch, w, h, w);
 	}
-	g_system->copyRectToScreen(buf, pitch, x + g_screen2DOffsetX, y, w, h);
+
+	// Safety clip: the 2D content is drawn at a +g_screen2DOffsetX horizontal
+	// offset on the (wider) physical screen. A rect whose right/bottom edge runs
+	// past the screen used to hit an assert in the OpenGL texture backend
+	// (x + w <= dstSurf->w). Clip it to the screen bounds so it can never crash,
+	// and log the offending call so the real source can be traced. (x and y are
+	// always >= 0 here, so only the right/bottom edges can overflow.)
+	int screenW = g_system->getWidth();
+	int screenH = g_system->getHeight();
+	int px = x + g_screen2DOffsetX;
+	int cw = w, ch = h;
+	if (px + cw > screenW || y + ch > screenH) {
+		warning("copyRectToScreen2D out of bounds: x=%d y=%d w=%d h=%d -> px=%d (offset=%d) screen=%dx%d",
+		        x, y, w, h, px, g_screen2DOffsetX, screenW, screenH);
+		if (px + cw > screenW) cw = screenW - px;
+		if (y + ch > screenH) ch = screenH - y;
+	}
+	if (cw <= 0 || ch <= 0) {
+		return;
+	}
+	g_system->copyRectToScreen(buf, pitch, px, y, cw, ch);
 }
 
 void CryOmni3DEngine::setMousePos(const Common::Point &point) {
