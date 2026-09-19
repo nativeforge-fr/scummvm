@@ -1857,9 +1857,13 @@ void CryOmni3DEngine_Versailles::playInGameVideo(const Common::Path &filename,
 		showMouse(false);
 	}
 	lockPalette(0, 241);
+	// In-game videos (transitions, character animations) are detailed motion:
+	// give them the ambient blurred side bars, like the cinematics.
+	g_screen2DBlurBars = true;
 	// Videos are like music because if you mute music in game it will mute videos soundtracks
 	playHNM(filename, Audio::Mixer::kMusicSoundType, nullptr,
 	        static_cast<HNMCallback>(&CryOmni3DEngine_Versailles::drawCountdownVideo));
+	g_screen2DBlurBars = false;
 	clearKeys();
 	unlockPalette();
 	if (restoreCursorPalette) {
