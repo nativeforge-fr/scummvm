@@ -107,6 +107,7 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 	menuEntries.push_back(29);
 	menuEntries.push_back(48);
 	menuEntries.push_back(1000); // Widescreen standalone: graphics filtering toggle
+	menuEntries.push_back(1001); // Widescreen standalone: language switch
 	menuEntries.push_back(30);
 	menuEntries.push_back(32);
 #if 0
@@ -236,6 +237,8 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 						// 11 leading spaces to match the indent of the other menu entries
 						bool filt = g_system->getFeatureState(OSystem::kFeatureFilteringMode);
 						entryText = Common::String("           Filtrage image : ") + (filt ? "OUI" : "NON");
+					} else if (msgId == 1001) {
+						entryText = Common::String("           Langue : ") + languageLabel(getLanguage());
 					} else {
 						entryText = _messages[msgId];
 					}
@@ -455,6 +458,12 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				g_system->endGFXTransaction();
 				ConfMan.setBool("filtering", newVal);
 				drawState = 1; // entry text (OUI/NON) is redrawn from the backend state
+				selectedMsg = 0;
+				waitMouseRelease();
+			} else if (selectedMsg == 1001) {
+				// Widescreen standalone: cycle language, reload data live.
+				changeLanguage(nextLanguage(getLanguage()));
+				drawState = 1;
 				selectedMsg = 0;
 				waitMouseRelease();
 			}

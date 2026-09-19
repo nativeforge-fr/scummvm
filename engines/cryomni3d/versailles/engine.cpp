@@ -21,6 +21,8 @@
 
 #include "common/config-manager.h"
 #include "common/system.h"
+#include "common/archive.h"
+#include "common/fs.h"
 #include "common/error.h"
 #include "common/file.h"
 #include "common/rect.h"
@@ -79,6 +81,10 @@ bool CryOmni3DEngine_Versailles::hasFeature(EngineFeature f) const {
 }
 
 void CryOmni3DEngine_Versailles::initializePath(const Common::FSNode &gamePath) {
+	// Widescreen standalone: remember the game path so the in-game language
+	// switch can (re)mount the per-language data overlay under lang/<code>/.
+	_gamePath = gamePath;
+
 	// This works if the user has installed the game as required in the Wiki
 	SearchMan.addDirectory(gamePath, 0, 4, false);
 
@@ -113,6 +119,23 @@ void CryOmni3DEngine_Versailles::initializePath(const Common::FSNode &gamePath) 
 
 Common::Error CryOmni3DEngine_Versailles::run() {
 	CryOmni3DEngine::run();
+
+	// Widescreen standalone: apply the persisted language choice (if any) before
+	// loading any language-dependent data. The base game_data is French; other
+	// languages are mounted as an overlay under lang/<code>/.
+	if (ConfMan.hasKey("versailles_language")) {
+		Common::String langCode = ConfMan.get("versailles_language");
+		if (langCode == "en") {
+			setCurrentLanguage(Common::EN_ANY);
+		} else if (langCode == "de") {
+			setCurrentLanguage(Common::DE_DEU);
+		} else if (langCode == "zh") {
+			setCurrentLanguage(Common::ZH_TWN);
+		} else {
+			setCurrentLanguage(Common::FR_FRA);
+		}
+	}
+	applyLanguageOverlay(getLanguage());
 
 	// First thing, load all data that was originally in the executable
 	// We don't need anything prepared for that
@@ -157,7 +180,8 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 	initDocPeopleRecord();
 	_docManager.init(&_sprites, &_fontManager, &_messages, this,
 	                 getFilePath(kFileTypeText, _localizedFilenames[LocalizedFilenames::kAllDocs]),
-	                 getFilePath(kFileTypeText, getFeatures() & GF_VERSAILLES_LINK_LOCALIZED ?
+	                 getFilePath(kFileTypeText, ((getFeatures() & GF_VERSAILLES_LINK_LOCALIZED) ||
+	                 getLanguage() == Common::DE_DEU) ?
 	                 _localizedFilenames[LocalizedFilenames::kLinksDocs] :
 	                 "lien_doc.txt"));
 
@@ -1975,6 +1999,132 @@ void CryOmni3DEngine_Versailles::loadBMPs(const char *pattern, Graphics::Surface
 		bmpDecoder.destroy();
 		file.close();
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Widescreen standalone: in-game language switch
+// ---------------------------------------------------------------------------
+
+// Find a child node by name, case-insensitively (folder names may differ in
+// case across platforms/dumps).
+static Common::FSNode childCaseless(const Common::FSNode &parent, const Common::String &name) {
+	Common::FSNode direct = parent.getChild(name);
+	if (direct.exists()) {
+		return direct;
+	}
+	Common::FSList list;
+	if (parent.getChildren(list, Common::FSNode::kListAll)) {
+		for (Common::FSList::iterator it = list.begin(); it != list.end(); it++) {
+			if (it->getName().equalsIgnoreCase(name)) {
+				return *it;
+			}
+		}
+	}
+	return direct; // non-existent
+}
+
+const char *CryOmni3DEngine_Versailles::languageCode(Common::Language lang) {
+	switch (lang) {
+	case Common::EN_ANY:
+		return "en";
+	case Common::DE_DEU:
+		return "de";
+	case Common::ZH_TWN:
+		return "zh";
+	case Common::FR_FRA:
+	default:
+		return nullptr; // French is the base data, no overlay
+	}
+}
+
+const char *CryOmni3DEngine_Versailles::languageLabel(Common::Language lang) {
+	switch (lang) {
+	case Common::EN_ANY:
+		return "English";
+	case Common::DE_DEU:
+		return "Deutsch";
+	case Common::ZH_TWN:
+		return "Chinese";
+	case Common::FR_FRA:
+	default:
+		return "Francais";
+	}
+}
+
+Common::Language CryOmni3DEngine_Versailles::nextLanguage(Common::Language lang) {
+	switch (lang) {
+	case Common::FR_FRA:
+		return Common::EN_ANY;
+	case Common::EN_ANY:
+		return Common::DE_DEU;
+	case Common::DE_DEU:
+		return Common::ZH_TWN;
+	case Common::ZH_TWN:
+	default:
+		return Common::FR_FRA;
+	}
+}
+
+void CryOmni3DEngine_Versailles::applyLanguageOverlay(Common::Language lang) {
+	// Drop any previously mounted overlay.
+	if (SearchMan.hasArchive("versailles_lang_data")) {
+		SearchMan.remove("versailles_lang_data");
+	}
+	if (SearchMan.hasArchive("versailles_lang_install")) {
+		SearchMan.remove("versailles_lang_install");
+	}
+
+	const char *code = languageCode(lang);
+	if (!code) {
+		// French == base data: nothing to overlay.
+		return;
+	}
+
+	Common::FSNode langRoot = childCaseless(childCaseless(_gamePath, "lang"), code);
+	if (!langRoot.exists()) {
+		warning("Language overlay '%s' not found; keeping base (French) data", code);
+		return;
+	}
+	// Higher priority (100) than the base directories (0) so overlay files win.
+	Common::FSNode datasv = childCaseless(langRoot, "datas_v");
+	if (datasv.exists()) {
+		SearchMan.addDirectory("versailles_lang_data", datasv, 100, 4, false);
+	}
+	Common::FSNode installData = childCaseless(childCaseless(langRoot, "install"), "data");
+	if (installData.exists()) {
+		SearchMan.addDirectory("versailles_lang_install", installData, 100, 3, false);
+	}
+}
+
+void CryOmni3DEngine_Versailles::changeLanguage(Common::Language lang) {
+	if (lang == getLanguage()) {
+		return;
+	}
+
+	setCurrentLanguage(lang);
+	applyLanguageOverlay(lang);
+
+	// Persist the choice so the next launch starts in this language.
+	const char *code = languageCode(lang);
+	ConfMan.set("versailles_language", code ? code : "fr");
+	ConfMan.flushToDisk();
+
+	// Reload every language-dependent resource live. On-demand assets (voices,
+	// cinematics, localized images) are picked up through SearchMan, which we
+	// already re-pointed above, so only the preloaded data needs refreshing.
+	loadStaticData();     // messages, localized filenames, painting titles, subtitles
+	setupFonts();         // Latin vs CJK fonts
+	setupObjects();       // object names come from _messages
+	_dialogsMan.init(138, _messages[22]);
+	_dialogsMan.loadGTO(getFilePath(kFileTypeGTO, _localizedFilenames[LocalizedFilenames::kDialogs]));
+
+	bool localizedLinks = (getFeatures() & GF_VERSAILLES_LINK_LOCALIZED) ||
+	                      (getLanguage() == Common::DE_DEU);
+	_docManager.init(&_sprites, &_fontManager, &_messages, this,
+	                 getFilePath(kFileTypeText, _localizedFilenames[LocalizedFilenames::kAllDocs]),
+	                 getFilePath(kFileTypeText, localizedLinks
+	                             ? _localizedFilenames[LocalizedFilenames::kLinksDocs]
+	                             : Common::String("lien_doc.txt")));
 }
 
 } // End of namespace Versailles

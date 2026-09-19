@@ -128,6 +128,9 @@ public:
 	Common::Platform getPlatform() const;
 	uint8 getGameType() const;
 	Common::Language getLanguage() const;
+	// Widescreen standalone: the active language can be changed at runtime
+	// (in-game language switch), overriding the detected one.
+	void setCurrentLanguage(Common::Language lang) { _currentLanguage = lang; }
 
 	bool hasFeature(EngineFeature f) const override;
 	bool canLoadGameStateCurrently(Common::U32String *msg = nullptr) override { return _canLoadSave; }
@@ -190,6 +193,10 @@ protected:
 
 protected:
 	bool _canLoadSave;
+
+	// Active language: initialised from the game descriptor, but mutable so the
+	// in-game language switch (widescreen standalone) can change it at runtime.
+	Common::Language _currentLanguage;
 
 	FontManager _fontManager;
 	Sprites _sprites;
