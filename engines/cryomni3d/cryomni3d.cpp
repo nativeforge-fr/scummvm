@@ -394,6 +394,37 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 		if (x1 <= x0 || screenH > 512 || (x1 - x0) > 288)
 			continue;
 		int bw = x1 - x0;
+
+		// Uniformity exception: if the image edge this bar samples is a nearly
+		// solid color, extend that exact color (no blur, no dimming) so a plain
+		// background (e.g. a solid white screen) has matching, seamless bars.
+		int tu0 = x0 * TW / screenW, tu1 = x1 * TW / screenW;
+		if (tu1 <= tu0) tu1 = tu0 + 1;
+		if (tu1 > TW) tu1 = TW;
+		int mn[3] = {255, 255, 255}, mx[3] = {0, 0, 0};
+		long usum[3] = {0, 0, 0};
+		int ucnt = 0;
+		for (int ty = 0; ty < TH; ty++) {
+			for (int tx = tu0; tx < tu1; tx++) {
+				const byte *t = &thumb[(ty * TW + tx) * 3];
+				for (int c = 0; c < 3; c++) {
+					if (t[c] < mn[c]) mn[c] = t[c];
+					if (t[c] > mx[c]) mx[c] = t[c];
+					usum[c] += t[c];
+				}
+				ucnt++;
+			}
+		}
+		if (ucnt < 1) ucnt = 1;
+		int range = (mx[0] - mn[0]) + (mx[1] - mn[1]) + (mx[2] - mn[2]);
+		if (range < 24) {
+			int R = usum[0] / ucnt, G = usum[1] / ucnt, B = usum[2] / ucnt;
+			byte idx = s_nearestLUT[((R >> 4) << 8) | ((G >> 4) << 4) | (B >> 4)];
+			memset(bar, idx, (size_t)bw * screenH);
+			g_system->copyRectToScreen(bar, bw, x0, 0, bw, screenH);
+			continue;
+		}
+
 		for (int y = 0; y < screenH; y++) {
 			float fv = (float)y / screenH * (TH - 1);
 			int v0 = (int)fv, v1 = v0 + 1;
