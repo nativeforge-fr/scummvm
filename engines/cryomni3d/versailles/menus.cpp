@@ -221,7 +221,12 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				if (*it > 0) {
 					int msgId = *it;
 					bottom = top;
-					top += 24;
+					// Widescreen standalone: the in-game options menu has more
+					// entries (continue/save + our filter and voice/text language),
+					// so tighten the line spacing there (21 instead of 24) to keep
+					// everything on screen down to "Quitter le jeu" below "Credits".
+					// The title-screen menu (fewer entries) keeps its 24px spacing.
+					top += (_isPlaying ? 21 : 24);
 
 					// Patch on the fly the text displayed
 					if (_isVisiting) {
