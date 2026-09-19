@@ -180,8 +180,7 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 	initDocPeopleRecord();
 	_docManager.init(&_sprites, &_fontManager, &_messages, this,
 	                 getFilePath(kFileTypeText, _localizedFilenames[LocalizedFilenames::kAllDocs]),
-	                 getFilePath(kFileTypeText, ((getFeatures() & GF_VERSAILLES_LINK_LOCALIZED) ||
-	                 getLanguage() == Common::DE_DEU) ?
+	                 getFilePath(kFileTypeText, getFeatures() & GF_VERSAILLES_LINK_LOCALIZED ?
 	                 _localizedFilenames[LocalizedFilenames::kLinksDocs] :
 	                 "lien_doc.txt"));
 
@@ -2118,11 +2117,9 @@ void CryOmni3DEngine_Versailles::changeLanguage(Common::Language lang) {
 	_dialogsMan.init(138, _messages[22]);
 	_dialogsMan.loadGTO(getFilePath(kFileTypeGTO, _localizedFilenames[LocalizedFilenames::kDialogs]));
 
-	bool localizedLinks = (getFeatures() & GF_VERSAILLES_LINK_LOCALIZED) ||
-	                      (getLanguage() == Common::DE_DEU);
 	_docManager.init(&_sprites, &_fontManager, &_messages, this,
 	                 getFilePath(kFileTypeText, _localizedFilenames[LocalizedFilenames::kAllDocs]),
-	                 getFilePath(kFileTypeText, localizedLinks
+	                 getFilePath(kFileTypeText, getFeatures() & GF_VERSAILLES_LINK_LOCALIZED
 	                             ? _localizedFilenames[LocalizedFilenames::kLinksDocs]
 	                             : Common::String("lien_doc.txt")));
 }
