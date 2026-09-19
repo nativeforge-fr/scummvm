@@ -988,8 +988,17 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 
 	drawCountdown(&dstSurface);
 
-	copyRectToScreen2D(dstSurface.getPixels(), dstSurface.pitch, 0, 0,
-	                           dstSurface.w, dstSurface.h);
+	// The background may be a full-physical-width warp view (864, from
+	// displayMessageBoxWarp) or a narrower 4:3 surface (fixed image close-up).
+	// A full-width surface is already in physical space -> blit it raw; a 4:3
+	// surface is pillarboxed via copyRectToScreen2D.
+	if ((int)dstSurface.w >= (int)g_system->getWidth()) {
+		g_system->copyRectToScreen(dstSurface.getPixels(), dstSurface.pitch, 0, 0,
+		                           dstSurface.w, dstSurface.h);
+	} else {
+		copyRectToScreen2D(dstSurface.getPixels(), dstSurface.pitch, 0, 0,
+		                           dstSurface.w, dstSurface.h);
+	}
 
 	waitMouseRelease();
 	uint disappearTime = g_system->getMillis() + msg.size() * params.timeoutChar * 10;
@@ -1005,8 +1014,12 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 		}
 	}
 
-	// Restore image
-	copyRectToScreen2D(surface->getPixels(), surface->pitch, 0, 0, surface->w, surface->h);
+	// Restore image (same full-width vs pillarboxed distinction as above)
+	if ((int)surface->w >= (int)g_system->getWidth()) {
+		g_system->copyRectToScreen(surface->getPixels(), surface->pitch, 0, 0, surface->w, surface->h);
+	} else {
+		copyRectToScreen2D(surface->getPixels(), surface->pitch, 0, 0, surface->w, surface->h);
+	}
 }
 
 void CryOmni3DEngine_Versailles::displayMessageBoxWarp(const Common::String &message) {
