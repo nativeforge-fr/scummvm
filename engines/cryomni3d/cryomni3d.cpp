@@ -139,10 +139,10 @@ void CryOmni3DEngine::playHNM(const Common::Path &filepath, Audio::Mixer::SoundT
 				if (_hnmHasClip) {
 					Common::Rect rct(width, height);
 					rct.clip(_hnmClipping);
-					g_system->copyRectToScreen(frame->getPixels(), frame->pitch, rct.left, rct.top, rct.width(),
+					copyRectToScreen2D(frame->getPixels(), frame->pitch, rct.left, rct.top, rct.width(),
 					                           rct.height());
 				} else {
-					g_system->copyRectToScreen(frame->getPixels(), frame->pitch, 0, 0, width, height);
+					copyRectToScreen2D(frame->getPixels(), frame->pitch, 0, 0, width, height);
 				}
 
 				if (afterDraw) {
@@ -195,7 +195,7 @@ bool CryOmni3DEngine::displayHLZ(const Common::Path &filepath, uint32 timeout) {
 	}
 
 	const Graphics::Surface *frame = imageDecoder->getSurface();
-	g_system->copyRectToScreen(frame->getPixels(), frame->pitch, 0, 0, frame->w, frame->h);
+	copyRectToScreen2D(frame->getPixels(), frame->pitch, 0, 0, frame->w, frame->h);
 	g_system->updateScreen();
 
 	uint32 end;
@@ -313,13 +313,30 @@ void CryOmni3DEngine::waitMouseRelease() {
 	}
 }
 
+// Widescreen 2D centering offset (physical - 2D). Set by the engine after
+// initGraphics(); 0 means no widescreen (native 640 layout).
+int g_screen2DOffsetX = 0;
+
+void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h) {
+	g_system->copyRectToScreen(buf, pitch, x + g_screen2DOffsetX, y, w, h);
+}
+
 void CryOmni3DEngine::setMousePos(const Common::Point &point) {
-	g_system->warpMouse(point.x, point.y);
+	// point is given in 2D virtual-screen coords: warp to physical.
+	g_system->warpMouse(point.x + g_screen2DOffsetX, point.y);
 	// Ensure to update mouse position in event manager
 	pollEvents();
 }
 
 Common::Point CryOmni3DEngine::getMousePos() {
+	// Return 2D virtual-screen coords (used by all 2D UI hit-testing).
+	Common::Point p = g_system->getEventManager()->getMousePos();
+	p.x -= g_screen2DOffsetX;
+	return p;
+}
+
+Common::Point CryOmni3DEngine::getRawMousePos() {
+	// Raw physical coords (used by the full-width OMNI3D panorama).
 	return g_system->getEventManager()->getMousePos();
 }
 
