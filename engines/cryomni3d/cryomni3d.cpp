@@ -317,17 +317,119 @@ void CryOmni3DEngine::waitMouseRelease() {
 // initGraphics(); 0 means no widescreen (native 640 layout).
 int g_screen2DOffsetX = 0;
 
+// --- Widescreen "ambient" blurred side bars (TikTok/Shorts-style background) ---
+// The game renders in 8-bit paletted mode, so we blur in RGB (via the current
+// palette) and remap to the nearest palette index using a precomputed LUT.
+static byte s_nearestLUT[4096];   // RGB444 -> palette index
+static byte s_lutPalette[768];
+static bool s_lutValid = false;
+
+static void buildNearestLUT(const byte *pal) {
+	for (int r = 0; r < 16; r++) {
+		for (int g = 0; g < 16; g++) {
+			for (int b = 0; b < 16; b++) {
+				int R = r * 17, G = g * 17, B = b * 17; // 4-bit -> 8-bit
+				int best = 0;
+				long bestd = 0x7fffffffL;
+				for (int i = 0; i < 256; i++) {
+					int dr = R - pal[i * 3 + 0];
+					int dg = G - pal[i * 3 + 1];
+					int db = B - pal[i * 3 + 2];
+					long d = (long)dr * dr + (long)dg * dg + (long)db * db;
+					if (d < bestd) { bestd = d; best = i; }
+				}
+				s_nearestLUT[(r << 8) | (g << 4) | b] = (byte)best;
+			}
+		}
+	}
+	memcpy(s_lutPalette, pal, 768);
+	s_lutValid = true;
+}
+
+static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int contentW) {
+	int screenW = g_system->getWidth();
+	int screenH = g_system->getHeight();
+	if (g_screen2DOffsetX <= 0 || sw <= 0 || sh <= 0)
+		return;
+
+	byte pal[768];
+	g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+	if (!s_lutValid || memcmp(pal, s_lutPalette, 768) != 0)
+		buildNearestLUT(pal);
+
+	// Small blurred RGB thumbnail of the source (box average per cell).
+	const int TW = 64, TH = 48;
+	static byte thumb[TW * TH * 3];
+	for (int ty = 0; ty < TH; ty++) {
+		int sy0 = ty * sh / TH, sy1 = (ty + 1) * sh / TH;
+		if (sy1 <= sy0) sy1 = sy0 + 1;
+		for (int tx = 0; tx < TW; tx++) {
+			int sx0 = tx * sw / TW, sx1 = (tx + 1) * sw / TW;
+			if (sx1 <= sx0) sx1 = sx0 + 1;
+			long ar = 0, ag = 0, ab = 0, n = 0;
+			for (int yy = sy0; yy < sy1; yy++) {
+				const byte *row = src + yy * pitch;
+				for (int xx = sx0; xx < sx1; xx++) {
+					byte idx = row[xx];
+					ar += pal[idx * 3 + 0];
+					ag += pal[idx * 3 + 1];
+					ab += pal[idx * 3 + 2];
+					n++;
+				}
+			}
+			if (!n) n = 1;
+			byte *t = &thumb[(ty * TW + tx) * 3];
+			t[0] = (byte)(ar / n);
+			t[1] = (byte)(ag / n);
+			t[2] = (byte)(ab / n);
+		}
+	}
+
+	const int DARK = 150; // /256 ~ 0.59 dimming for the ambient look
+	static byte bar[288 * 512];
+	for (int pass = 0; pass < 2; pass++) {
+		int x0, x1;
+		if (pass == 0) { x0 = 0; x1 = g_screen2DOffsetX; }
+		else { x0 = g_screen2DOffsetX + contentW; x1 = screenW; }
+		if (x1 <= x0 || screenH > 512 || (x1 - x0) > 288)
+			continue;
+		int bw = x1 - x0;
+		for (int y = 0; y < screenH; y++) {
+			float fv = (float)y / screenH * (TH - 1);
+			int v0 = (int)fv, v1 = v0 + 1;
+			if (v1 >= TH) v1 = TH - 1;
+			float vf = fv - v0;
+			byte *brow = bar + y * bw;
+			for (int xx = 0; xx < bw; xx++) {
+				int X = x0 + xx;
+				float fu = (float)X / screenW * (TW - 1);
+				int u0 = (int)fu, u1 = u0 + 1;
+				if (u1 >= TW) u1 = TW - 1;
+				float uf = fu - u0;
+				const byte *t00 = &thumb[(v0 * TW + u0) * 3];
+				const byte *t10 = &thumb[(v0 * TW + u1) * 3];
+				const byte *t01 = &thumb[(v1 * TW + u0) * 3];
+				const byte *t11 = &thumb[(v1 * TW + u1) * 3];
+				int rgb[3];
+				for (int c = 0; c < 3; c++) {
+					float top = t00[c] * (1 - uf) + t10[c] * uf;
+					float bot = t01[c] * (1 - uf) + t11[c] * uf;
+					int v = (int)(top * (1 - vf) + bot * vf);
+					v = (v * DARK) >> 8;
+					rgb[c] = v;
+				}
+				brow[xx] = s_nearestLUT[((rgb[0] >> 4) << 8) | ((rgb[1] >> 4) << 4) | (rgb[2] >> 4)];
+			}
+		}
+		g_system->copyRectToScreen(bar, bw, x0, 0, bw, screenH);
+	}
+}
+
 void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h) {
 	if (g_screen2DOffsetX != 0 && x == 0) {
-		// Full-width 2D content: keep the pillarbox side bars black so
-		// transitions/videos don't leave stale content on the sides.
-		int sw = g_system->getWidth();
-		int sh = g_system->getHeight();
-		g_system->fillScreen(Common::Rect(0, 0, g_screen2DOffsetX, sh), 0);
-		int rightStart = g_screen2DOffsetX + w;
-		if (rightStart < sw) {
-			g_system->fillScreen(Common::Rect(rightStart, 0, sw, sh), 0);
-		}
+		// Full-width 2D content: fill the pillarbox side bars with an ambient
+		// blurred version of the image instead of leaving stale content.
+		drawBlurredSideBars((const byte *)buf, pitch, w, h, w);
 	}
 	g_system->copyRectToScreen(buf, pitch, x + g_screen2DOffsetX, y, w, h);
 }
