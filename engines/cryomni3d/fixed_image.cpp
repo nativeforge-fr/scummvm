@@ -228,14 +228,15 @@ void ZonFixedImage::manage() {
 	if (_key == Common::KEYCODE_SPACE ||
 	        _engine.getCurrentMouseButton() == 2 ||
 	        mousePos.y > _configuration->toolbarTriggerY) {
-		bool mustRedraw = _engine.displayToolbar(_imageSurface);
+		_engine.displayToolbar(_imageSurface);
 		// We just came back from toolbar: check if an object is selected and go into object mode
 		if (_inventory.selectedObject()) {
 			_zonesMode = kZonesMode_Object;
 		}
-		if (mustRedraw) {
-			display();
-		}
+		// Always fully redraw the fixed image: the widescreen HUD is drawn full
+		// physical width, but a fixed image is pillarboxed, so hiding the toolbar
+		// leaves artifacts in the side bars unless we re-blit the whole image.
+		display();
 		// Return without any event to redo the loop and force refresh
 		_refreshCursor = true;
 		_engine.setCanLoadSave(false);
