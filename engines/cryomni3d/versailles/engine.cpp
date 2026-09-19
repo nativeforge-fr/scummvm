@@ -2186,11 +2186,15 @@ void CryOmni3DEngine_Versailles::changeAudioLanguage(Common::Language lang) {
 // ---- Localized UI labels for the custom menu entries (current text language) ----
 // ASCII only, so they render with any font (including the CJK menu font).
 
+// The Chinese (ZH_TWN) strings are Big5 / CP950 byte sequences, matching the
+// encoding of the game's own Chinese menu strings (setupFonts loads the CJK
+// font with kWindows950), so they render with the tw12 font.
 const char *CryOmni3DEngine_Versailles::uiLabelFilter() const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return "Filtrage image";
 	case Common::DE_DEU: return "Bildfilter";
-	default:             return "Image filter"; // EN + ZH fallback
+	case Common::ZH_TWN: return "\xbc\x76\xb9\xb3\xc2\x6f\xc3\xe8"; // 影像濾鏡
+	default:             return "Image filter";
 	}
 }
 
@@ -2198,6 +2202,7 @@ const char *CryOmni3DEngine_Versailles::uiLabelVoiceLang() const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return "Langue des voix";
 	case Common::DE_DEU: return "Sprache Stimmen";
+	case Common::ZH_TWN: return "\xbb\x79\xad\xb5\xbb\x79\xa8\xa5"; // 語音語言
 	default:             return "Voice language";
 	}
 }
@@ -2206,6 +2211,7 @@ const char *CryOmni3DEngine_Versailles::uiLabelTextLang() const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return "Langue des textes";
 	case Common::DE_DEU: return "Sprache Texte";
+	case Common::ZH_TWN: return "\xa4\xe5\xa6\x72\xbb\x79\xa8\xa5"; // 文字語言
 	default:             return "Text language";
 	}
 }
@@ -2214,12 +2220,13 @@ const char *CryOmni3DEngine_Versailles::uiLabelOnOff(bool on) const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return on ? "OUI" : "NON";
 	case Common::DE_DEU: return on ? "JA" : "NEIN";
+	case Common::ZH_TWN: return on ? "\xb6\x7d" : "\xc3\xf6"; // 開 / 關
 	default:             return on ? "ON" : "OFF";
 	}
 }
 
 const char *CryOmni3DEngine_Versailles::languageNameLocalized(Common::Language named) const {
-	// Name of 'named' written in the current text language (ASCII, font-safe).
+	// Name of 'named' written in the current text language.
 	switch (getLanguage()) {
 	case Common::FR_FRA:
 		switch (named) {
@@ -2235,7 +2242,14 @@ const char *CryOmni3DEngine_Versailles::languageNameLocalized(Common::Language n
 		case Common::ZH_TWN: return "Chinesisch";
 		default:             return "Franzoesisch";
 		}
-	default: // EN + ZH
+	case Common::ZH_TWN: // Big5: 法文 / 英文 / 德文 / 中文
+		switch (named) {
+		case Common::EN_ANY: return "\xad\x5e\xa4\xe5";
+		case Common::DE_DEU: return "\xbc\x77\xa4\xe5";
+		case Common::ZH_TWN: return "\xa4\xa4\xa4\xe5";
+		default:             return "\xaa\x6b\xa4\xe5";
+		}
+	default: // EN
 		switch (named) {
 		case Common::EN_ANY: return "English";
 		case Common::DE_DEU: return "German";
