@@ -44,6 +44,11 @@ public:
 
 	void registerShowCallback(const Common::String &showName, ShowCallback callback) { _shows[showName] = callback; }
 
+	// Widescreen standalone: the audio-filename padding depends on the audio
+	// language (e.g. English voices are not padded to 8.3), so it can change
+	// when the language is switched at runtime.
+	void setPadAudioFileName(bool pad) { _padAudioFileName = pad; }
+
 protected:
 	void executeShow(const Common::String &show) override;
 	void playDialog(const Common::String &video, const Common::String &sound,
