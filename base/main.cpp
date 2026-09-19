@@ -582,6 +582,11 @@ extern "C" int scummvm_main(int argc, const char * const argv[]) {
 	// Alt+Enter afterwards; their choice is then remembered).
 	if (!ConfMan.hasKey("fullscreen", Common::ConfigManager::kApplicationDomain))
 		ConfMan.setBool("fullscreen", true, Common::ConfigManager::kApplicationDomain);
+	// Smooth (bilinear) scaling by default: the game renders at 864x480 and is
+	// upscaled to the display; photographic panoramas look better filtered than
+	// as hard pixels. Toggle in the graphics options if preferred.
+	if (!ConfMan.hasKey("filtering", Common::ConfigManager::kApplicationDomain))
+		ConfMan.setBool("filtering", true, Common::ConfigManager::kApplicationDomain);
 #endif
 
 	// Init the backend. Must take place after all config data (including
