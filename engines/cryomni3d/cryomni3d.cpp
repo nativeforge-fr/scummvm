@@ -395,32 +395,37 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 			continue;
 		int bw = x1 - x0;
 
-		// Uniformity exception: if the image edge this bar samples is a nearly
-		// solid color, extend that exact color (no blur, no dimming) so a plain
-		// background (e.g. a solid white screen) has matching, seamless bars.
+		// Adaptive: measure the HORIZONTAL detail of the image edge this bar
+		// samples. Low horizontal detail (solid color, vertical gradient, plain
+		// logo/title backgrounds) -> extend the exact edge column per row (clean,
+		// seamless, no blur/dimming). Only genuinely detailed content (the main
+		// cinematic, scenes) keeps the ambient blur.
 		int tu0 = x0 * TW / screenW, tu1 = x1 * TW / screenW;
 		if (tu1 <= tu0) tu1 = tu0 + 1;
 		if (tu1 > TW) tu1 = TW;
-		int mn[3] = {255, 255, 255}, mx[3] = {0, 0, 0};
-		long usum[3] = {0, 0, 0};
-		int ucnt = 0;
+		long hvar = 0;
+		int hrows = 0;
 		for (int ty = 0; ty < TH; ty++) {
+			int rmn[3] = {255, 255, 255}, rmx[3] = {0, 0, 0};
 			for (int tx = tu0; tx < tu1; tx++) {
 				const byte *t = &thumb[(ty * TW + tx) * 3];
 				for (int c = 0; c < 3; c++) {
-					if (t[c] < mn[c]) mn[c] = t[c];
-					if (t[c] > mx[c]) mx[c] = t[c];
-					usum[c] += t[c];
+					if (t[c] < rmn[c]) rmn[c] = t[c];
+					if (t[c] > rmx[c]) rmx[c] = t[c];
 				}
-				ucnt++;
 			}
+			hvar += (rmx[0] - rmn[0]) + (rmx[1] - rmn[1]) + (rmx[2] - rmn[2]);
+			hrows++;
 		}
-		if (ucnt < 1) ucnt = 1;
-		int range = (mx[0] - mn[0]) + (mx[1] - mn[1]) + (mx[2] - mn[2]);
-		if (range < 24) {
-			int R = usum[0] / ucnt, G = usum[1] / ucnt, B = usum[2] / ucnt;
-			byte idx = s_nearestLUT[((R >> 4) << 8) | ((G >> 4) << 4) | (B >> 4)];
-			memset(bar, idx, (size_t)bw * screenH);
+		int avgHVar = hvar / (hrows ? hrows : 1);
+		if (avgHVar < 30) {
+			int edgeX = (pass == 0) ? 0 : (sw - 1);
+			for (int y = 0; y < screenH; y++) {
+				int sy = y * sh / screenH;
+				if (sy >= sh) sy = sh - 1;
+				byte idx = src[sy * pitch + edgeX];
+				memset(bar + (size_t)y * bw, idx, bw);
+			}
 			g_system->copyRectToScreen(bar, bw, x0, 0, bw, screenH);
 			continue;
 		}
