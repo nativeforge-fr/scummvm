@@ -105,6 +105,7 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 	menuEntries.push_back(28);
 	menuEntries.push_back(29);
 	menuEntries.push_back(48);
+	menuEntries.push_back(1000); // Widescreen standalone: graphics filtering toggle
 	menuEntries.push_back(30);
 	menuEntries.push_back(32);
 #if 0
@@ -228,7 +229,16 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 						}
 					}
 
-					width = _fontManager.getStrWidth(_messages[msgId]);
+					// Widescreen standalone: custom entry 1000 = graphics filtering toggle
+					Common::String entryText;
+					if (msgId == 1000) {
+						entryText = Common::String("Filtrage image : ") +
+						            (ConfMan.getBool("filtering") ? "OUI" : "NON");
+					} else {
+						entryText = _messages[msgId];
+					}
+
+					width = _fontManager.getStrWidth(entryText);
 					//Common::Rect rct(144, top - 39, width + 144, bottom);
 					//optionsSurface.frameRect(rct, 0);
 					boxes.setupBox(boxId, 144, top - 39, width + 144, bottom);
@@ -237,7 +247,7 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 					} else {
 						_fontManager.setForeColor(243);
 					}
-					_fontManager.displayStr(144, top - 39, _messages[msgId]);
+					_fontManager.displayStr(144, top - 39, entryText);
 				}
 				boxId++;
 			}
@@ -431,6 +441,14 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				syncSoundSettings();
 				drawState = 1;
 				menuEntries[selectedBox] = 32;
+				selectedMsg = 0;
+				waitMouseRelease();
+			} else if (selectedMsg == 1000) {
+				// Widescreen standalone: toggle graphics filtering (bilinear).
+				bool newVal = !ConfMan.getBool("filtering");
+				ConfMan.setBool("filtering", newVal);
+				g_system->setFeatureState(OSystem::kFeatureFilteringMode, newVal);
+				drawState = 1; // entry text (OUI/NON) is redrawn from ConfMan
 				selectedMsg = 0;
 				waitMouseRelease();
 			}
