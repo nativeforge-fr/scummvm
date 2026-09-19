@@ -149,6 +149,8 @@ void Versailles_Documentation::init(const Sprites *sprites, FontManager *fontMan
 }
 
 void Versailles_Documentation::handleDocArea() {
+	// Documentation space (encyclopedia): static screen -> crisp solid-color bars.
+	Screen2DBarsGuard _barsGuard(false);
 	_engine->showMouse(false);
 
 	// Load all links lazily and free them at the end to not waste memory
@@ -180,6 +182,8 @@ void Versailles_Documentation::handleDocArea() {
 }
 
 void Versailles_Documentation::handleDocInGame(const Common::String &record) {
+	// Documentation record shown in-game: static screen -> crisp solid-color bars.
+	Screen2DBarsGuard _barsGuard(false);
 	_visitTrace.clear();
 	_currentRecord = record;
 

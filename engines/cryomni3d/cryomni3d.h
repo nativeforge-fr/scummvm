@@ -74,6 +74,14 @@ extern int g_screen2DOffsetX;
 // video(s), false for logos/title/stills.
 extern bool g_screen2DBlurBars;
 
+// RAII helper: force crisp (or blurred) side bars for the scope of a static
+// screen (menus, documentation, ...), restoring the previous mode on exit.
+struct Screen2DBarsGuard {
+	bool _old;
+	explicit Screen2DBarsGuard(bool blur) : _old(g_screen2DBlurBars) { g_screen2DBlurBars = blur; }
+	~Screen2DBarsGuard() { g_screen2DBlurBars = _old; }
+};
+
 // Blit a 640-space 2D surface centered on the (possibly wider) physical screen.
 void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h);
 
