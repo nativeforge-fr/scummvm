@@ -321,6 +321,7 @@ int g_screen2DOffsetX = 0;
 // set to false (crisp solid edge color) only for the exceptions: the intro
 // logos and the title/main-menu screen.
 bool g_screen2DBlurBars = true;
+bool g_screen2DMirrorLeftBar = false;
 
 // --- Widescreen "ambient" blurred side bars (TikTok/Shorts-style background) ---
 // The game renders in 8-bit paletted mode, so we blur in RGB (via the current
@@ -361,19 +362,29 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 	// = the dominant color of the source column that touches that bar (the pixel
 	// adjacent to the bar edge). E.g. a plain white intro screen -> white bars.
 	if (!g_screen2DBlurBars) {
+		int leftIdx = -1;
 		for (int pass = 0; pass < 2; pass++) {
 			int x0 = (pass == 0) ? 0 : (g_screen2DOffsetX + contentW);
 			int x1 = (pass == 0) ? g_screen2DOffsetX : screenW;
 			if (x1 <= x0)
 				continue;
-			int edgeX = (pass == 0) ? 0 : (sw - 1);
-			int hist[256];
-			memset(hist, 0, sizeof(hist));
-			for (int y = 0; y < sh; y++)
-				hist[src[y * pitch + edgeX]]++;
-			int domIdx = 0, domCnt = -1;
-			for (int i = 0; i < 256; i++)
-				if (hist[i] > domCnt) { domCnt = hist[i]; domIdx = i; }
+			int domIdx;
+			if (pass == 1 && g_screen2DMirrorLeftBar && leftIdx >= 0) {
+				// Menus: reuse the left bar's color for the right bar so both match.
+				domIdx = leftIdx;
+			} else {
+				int edgeX = (pass == 0) ? 0 : (sw - 1);
+				int hist[256];
+				memset(hist, 0, sizeof(hist));
+				for (int y = 0; y < sh; y++)
+					hist[src[y * pitch + edgeX]]++;
+				domIdx = 0;
+				int domCnt = -1;
+				for (int i = 0; i < 256; i++)
+					if (hist[i] > domCnt) { domCnt = hist[i]; domIdx = i; }
+			}
+			if (pass == 0)
+				leftIdx = domIdx;
 			g_system->fillScreen(Common::Rect(x0, 0, x1, screenH), domIdx);
 		}
 		return;
