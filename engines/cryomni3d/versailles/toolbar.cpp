@@ -28,6 +28,12 @@
 namespace CryOmni3D {
 namespace Versailles {
 
+// Widescreen HUD: the toolbar spans the full physical width. The native
+// 640-wide layout is redistributed: options anchored to the left edge,
+// documentation to the right edge, inventory + arrows + view centered.
+static const int kHudWidth = 864;
+static const int kHudOffX = (kHudWidth - 640) / 2; // 112
+
 void Toolbar::init(const Sprites *sprites, FontManager *fontManager,
 				   const Common::Array<Common::String> *messages, Inventory *inventory,
 				   CryOmni3DEngine *engine) {
@@ -37,8 +43,8 @@ void Toolbar::init(const Sprites *sprites, FontManager *fontManager,
 	_inventory = inventory;
 	_engine = engine;
 
-	_bgSurface.create(640, 60, Graphics::PixelFormat::createFormatCLUT8());
-	_destSurface.create(640, 60, Graphics::PixelFormat::createFormatCLUT8());
+	_bgSurface.create(kHudWidth, 60, Graphics::PixelFormat::createFormatCLUT8());
+	_destSurface.create(kHudWidth, 60, Graphics::PixelFormat::createFormatCLUT8());
 
 	// Inventory
 	addZone(51, 56, Common::Point(211, 8), &Toolbar::callbackInventory<0>);
@@ -65,6 +71,20 @@ void Toolbar::init(const Sprites *sprites, FontManager *fontManager,
 	addZone(240, uint16(-1), Common::Point(574, 18), &Toolbar::callbackInventoryNext);
 	// View
 	addZone(142, uint16(-1), Common::Point(158, 12), &Toolbar::callbackViewObject);
+
+	// Widescreen HUD: redistribute the zones across the full width.
+	// Zone 8 = documentation (right edge), zone 9 = options (left edge),
+	// all others (inventory 0-7, prev 10, next 11, view 12) = centered.
+	if (kHudOffX > 0) {
+		for (uint i = 0; i < _zones.size(); i++) {
+			if (i == 9)
+				continue; // options: stays at the left edge (x = 0)
+			else if (i == 8)
+				_zones[i].rect.translate(2 * kHudOffX, 0); // documentation: right edge
+			else
+				_zones[i].rect.translate(kHudOffX, 0); // centered
+		}
+	}
 }
 
 Toolbar::~Toolbar() {
@@ -330,7 +350,7 @@ void Toolbar::drawToolbar(const Graphics::Surface *original) {
 
 	if (_position != 0) {
 		// Not entirely drawn, we must copy a part of the original image
-		Common::Rect rct(0, 420, 640, 420 + _position);
+		Common::Rect rct(0, 420, MIN<int16>(kHudWidth, (int16)original->w), 420 + _position);
 		_destSurface.copyRectToSurface(*original, 0, 0, rct);
 	}
 
@@ -340,7 +360,7 @@ void Toolbar::drawToolbar(const Graphics::Surface *original) {
 	}
 
 	// Not entirely hidden, we must display the transparent background prepared for us
-	Common::Rect rct(0, _position, 640, 60);
+	Common::Rect rct(0, _position, kHudWidth, 60);
 	_destSurface.copyRectToSurface(_bgSurface, 0, _position, rct);
 
 	// Now draw the various zones on the surface
@@ -384,7 +404,7 @@ void Toolbar::drawToolbar(const Graphics::Surface *original) {
 		_fontManager->setCurrentFont(5);
 		_fontManager->setTransparentBackground(true);
 		const Common::String &objName = (*_messages)[obj->idOBJ()];
-		uint x = 195 - _fontManager->getStrWidth(objName);
+		uint x = 195 + kHudOffX - _fontManager->getStrWidth(objName);
 		uint startX = _zones[zoneId].rect.left + kTextOffset;
 		_fontManager->displayStr(x, 38 + _position, objName);
 		_destSurface.hLine(x, 54 + _position, startX - 1, 243); // minus 1 because hLine draws inclusive
@@ -421,7 +441,7 @@ bool Toolbar::displayToolbar(const Graphics::Surface *original) {
 	for (_position = 60; _position > 0; _position--) {
 		// Make the toolbar go up
 		drawToolbar(original);
-		copyRectToScreen2D(_destSurface.getPixels(), _destSurface.pitch, 0,
+		g_system->copyRectToScreen(_destSurface.getPixels(), _destSurface.pitch, 0,
 		                           original->h - _destSurface.h, _destSurface.w, _destSurface.h);
 		g_system->updateScreen();
 
@@ -450,7 +470,7 @@ bool Toolbar::displayToolbar(const Graphics::Surface *original) {
 	for (_position = 0; _position <= 60; _position++) {
 		// Make the toolbar go up
 		drawToolbar(original);
-		copyRectToScreen2D(_destSurface.getPixels(), _destSurface.pitch, 0,
+		g_system->copyRectToScreen(_destSurface.getPixels(), _destSurface.pitch, 0,
 		                           original->h - _destSurface.h, _destSurface.w, _destSurface.h);
 		g_system->updateScreen();
 
@@ -483,7 +503,7 @@ void Toolbar::handleToolbarEvents(const Graphics::Surface *original) {
 	// No need of original surface because the toolbar is fully displayed
 	drawToolbar(original);
 
-	copyRectToScreen2D(_destSurface.getPixels(), _destSurface.pitch, 0,
+	g_system->copyRectToScreen(_destSurface.getPixels(), _destSurface.pitch, 0,
 	                           original->h - _destSurface.h, _destSurface.w, _destSurface.h);
 	g_system->updateScreen();
 
@@ -509,7 +529,8 @@ void Toolbar::handleToolbarEvents(const Graphics::Surface *original) {
 			break;
 		}
 
-		Common::Point mousePosInToolbar = _engine->getMousePos();
+		// Widescreen HUD spans the full width: raw mouse coords for hit-testing.
+		Common::Point mousePosInToolbar = _engine->getRawMousePos();
 		mousePosInToolbar -= Common::Point(0, 420);
 
 		if (captureEvent(mousePosInToolbar, _engine->getDragStatus())) {
@@ -586,7 +607,7 @@ void Toolbar::handleToolbarEvents(const Graphics::Surface *original) {
 
 		if (redrawToolbar) {
 			drawToolbar(original);
-			copyRectToScreen2D(_destSurface.getPixels(), _destSurface.pitch, 0,
+			g_system->copyRectToScreen(_destSurface.getPixels(), _destSurface.pitch, 0,
 			                           original->h - _destSurface.h, _destSurface.w, _destSurface.h);
 		}
 
