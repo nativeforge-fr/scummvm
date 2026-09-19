@@ -284,6 +284,17 @@ private:
 	void setupImgScripts();
 	void loadStaticData();
 
+	// Widescreen standalone: in-game language switch. The base data (game_data,
+	// French) is shared; each other language provides an overlay under
+	// lang/<code>/ that SearchMan searches with higher priority. changeLanguage()
+	// swaps the overlay and reloads all language-dependent data live.
+	Common::FSNode _gamePath;
+	void applyLanguageOverlay(Common::Language lang);
+	void changeLanguage(Common::Language lang);
+	static const char *languageCode(Common::Language lang);   // "en","de","zh",... or nullptr for base FR
+	static const char *languageLabel(Common::Language lang);  // "Français","English",...
+	static Common::Language nextLanguage(Common::Language lang); // cycle through available languages
+
 	void syncOmni3DSettings();
 	void syncSoundSettings() override;
 

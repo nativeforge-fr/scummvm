@@ -56,7 +56,7 @@ uint8 CryOmni3DEngine::getGameType() const {
 }
 
 Common::Language CryOmni3DEngine::getLanguage() const {
-	return _gameDescription->desc.language;
+	return _currentLanguage;
 }
 
 bool CryOmni3DEngine::hasFeature(EngineFeature f) const {

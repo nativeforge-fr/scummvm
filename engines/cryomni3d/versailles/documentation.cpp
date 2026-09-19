@@ -93,6 +93,11 @@ void Versailles_Documentation::init(const Sprites *sprites, FontManager *fontMan
 	// Japanese version of Versailles handles records attributes with multilines
 	_multilineAttributes = (_engine->getLanguage() == Common::JA_JPN);
 
+	// Reset any previously built record list so init() can be called again
+	// (widescreen standalone: live language switch reloads the documentation).
+	_records.clear();
+	_recordsOrdered.clear();
+
 	// Build list of records
 	Common::File allDocsFile;
 
