@@ -107,7 +107,8 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 	menuEntries.push_back(29);
 	menuEntries.push_back(48);
 	menuEntries.push_back(1000); // Widescreen standalone: graphics filtering toggle
-	menuEntries.push_back(1001); // Widescreen standalone: language switch
+	menuEntries.push_back(1001); // Widescreen standalone: voice (audio) language
+	menuEntries.push_back(1002); // Widescreen standalone: text (subtitle) language
 	menuEntries.push_back(30);
 	menuEntries.push_back(32);
 #if 0
@@ -236,9 +237,13 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 					if (msgId == 1000) {
 						// 11 leading spaces to match the indent of the other menu entries
 						bool filt = g_system->getFeatureState(OSystem::kFeatureFilteringMode);
-						entryText = Common::String("           Filtrage image : ") + (filt ? "OUI" : "NON");
+						entryText = Common::String("           ") + uiLabelFilter() + " : " + uiLabelOnOff(filt);
 					} else if (msgId == 1001) {
-						entryText = Common::String("           Langue : ") + languageLabel(getLanguage());
+						entryText = Common::String("           ") + uiLabelVoiceLang() + " : " +
+						            languageNameLocalized(_audioLanguage);
+					} else if (msgId == 1002) {
+						entryText = Common::String("           ") + uiLabelTextLang() + " : " +
+						            languageNameLocalized(getLanguage());
 					} else {
 						entryText = _messages[msgId];
 					}
@@ -461,8 +466,17 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				selectedMsg = 0;
 				waitMouseRelease();
 			} else if (selectedMsg == 1001) {
-				// Widescreen standalone: cycle language, reload data live.
-				changeLanguage(nextLanguage(getLanguage()));
+				// Cycle the VOICE (audio) language: voices + dubbed cinematics.
+				changeAudioLanguage(nextLanguage(_audioLanguage));
+				drawState = 1;
+				selectedMsg = 0;
+				waitMouseRelease();
+			} else if (selectedMsg == 1002) {
+				// Cycle the TEXT (subtitle) language: menus, documents, dialog
+				// text, object/menu images and fonts. Reloads fonts, so re-init
+				// the menu palette/fonts on the next draw as well.
+				changeTextLanguage(nextLanguage(getLanguage()));
+				resetScreen = true;
 				drawState = 1;
 				selectedMsg = 0;
 				waitMouseRelease();
