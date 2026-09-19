@@ -212,10 +212,7 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 		while (!exitLoop) {
 			_isPlaying = false;
 			if (!nextStep) {
-				// Title / main-menu screen: crisp solid-color side bars.
-				g_screen2DBlurBars = false;
 				nextStep = displayOptions();
-				g_screen2DBlurBars = true;
 			}
 			if (nextStep == 40) {
 				// Quit action
