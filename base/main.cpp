@@ -577,6 +577,13 @@ extern "C" int scummvm_main(int argc, const char * const argv[]) {
 		}
 	}
 
+#ifdef VERSAILLES_STANDALONE
+	// Standalone: start in fullscreen the first time (the user can toggle with
+	// Alt+Enter afterwards; their choice is then remembered).
+	if (!ConfMan.hasKey("fullscreen", Common::ConfigManager::kApplicationDomain))
+		ConfMan.setBool("fullscreen", true, Common::ConfigManager::kApplicationDomain);
+#endif
+
 	// Init the backend. Must take place after all config data (including
 	// the command line params) was read.
 	system.initBackend();
