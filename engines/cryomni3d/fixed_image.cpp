@@ -23,6 +23,7 @@
 
 #include "common/file.h"
 #include "common/system.h"
+#include "graphics/managed_surface.h"
 #include "graphics/palette.h"
 #include "graphics/surface.h"
 #include "image/image_decoder.h"
@@ -228,7 +229,20 @@ void ZonFixedImage::manage() {
 	if (_key == Common::KEYCODE_SPACE ||
 	        _engine.getCurrentMouseButton() == 2 ||
 	        mousePos.y > _configuration->toolbarTriggerY) {
-		_engine.displayToolbar(_imageSurface);
+		// The widescreen HUD toolbar is drawn at full physical width, but a fixed
+		// image is pillarboxed at g_screen2DOffsetX. Give the toolbar a full-width
+		// view with the image placed at that same offset, so it composes and
+		// animates (appear/disappear) without artifacts in the side bars.
+		int offX = g_screen2DOffsetX;
+		int screenW = g_system->getWidth();
+		if (offX > 0 && (int)_imageSurface->w + offX <= screenW) {
+			Graphics::ManagedSurface wide(screenW, _imageSurface->h, _imageSurface->format);
+			wide.clear(0);
+			wide.blitFrom(*_imageSurface, Common::Point(offX, 0));
+			_engine.displayToolbar(wide.surfacePtr());
+		} else {
+			_engine.displayToolbar(_imageSurface);
+		}
 		// We just came back from toolbar: check if an object is selected and go into object mode
 		if (_inventory.selectedObject()) {
 			_zonesMode = kZonesMode_Object;
