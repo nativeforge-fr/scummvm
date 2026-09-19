@@ -212,7 +212,10 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 		while (!exitLoop) {
 			_isPlaying = false;
 			if (!nextStep) {
+				// Title / main-menu screen: crisp solid-color side bars.
+				g_screen2DBlurBars = false;
 				nextStep = displayOptions();
+				g_screen2DBlurBars = true;
 			}
 			if (nextStep == 40) {
 				// Quit action
@@ -1858,12 +1861,12 @@ void CryOmni3DEngine_Versailles::playInGameVideo(const Common::Path &filename,
 	}
 	lockPalette(0, 241);
 	// In-game videos (transitions, character animations) are detailed motion:
-	// give them the ambient blurred side bars, like the cinematics.
+	// keep the ambient blurred side bars (the default).
 	g_screen2DBlurBars = true;
 	// Videos are like music because if you mute music in game it will mute videos soundtracks
 	playHNM(filename, Audio::Mixer::kMusicSoundType, nullptr,
 	        static_cast<HNMCallback>(&CryOmni3DEngine_Versailles::drawCountdownVideo));
-	g_screen2DBlurBars = false;
+	g_screen2DBlurBars = true;
 	clearKeys();
 	unlockPalette();
 	if (restoreCursorPalette) {
@@ -1877,12 +1880,11 @@ void CryOmni3DEngine_Versailles::playInGameVideo(const Common::Path &filename,
 void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filename) {
 	Common::HashMap<Common::String, Common::Array<SubtitleEntry> >::const_iterator it;
 
-	// Widescreen side bars: only the cinematic movies (*_vf) get the ambient
-	// blur; the intro logos (logo.hnm, jvclogo.hnm) and everything else keep
-	// crisp edge-extended bars.
+	// Widescreen side bars: everything is blurred by default; only the intro
+	// logos (logo.hnm, jvclogo.hnm) get crisp solid-color bars.
 	Common::String lf = filename;
 	lf.toLowercase();
-	g_screen2DBlurBars = lf.contains("_vf");
+	g_screen2DBlurBars = !lf.contains("logo");
 
 	if (!showSubtitles() ||
 	        (it = _subtitles.find(filename)) == _subtitles.end() ||
@@ -1890,7 +1892,7 @@ void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filena
 		// No subtitle, don't try to handle them frame by frame
 		// Videos are like music because if you mute music in game it will mute videos soundtracks
 		playHNM(getFilePath(kFileTypeTransScene, filename), Audio::Mixer::kMusicSoundType);
-		g_screen2DBlurBars = false;
+		g_screen2DBlurBars = true;
 		return;
 	}
 
@@ -1915,7 +1917,7 @@ void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filena
 
 	clearKeys();
 	unlockPalette();
-	g_screen2DBlurBars = false;
+	g_screen2DBlurBars = true;
 }
 
 void CryOmni3DEngine_Versailles::drawVideoSubtitles(uint frameNum) {

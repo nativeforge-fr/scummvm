@@ -317,9 +317,10 @@ void CryOmni3DEngine::waitMouseRelease() {
 // initGraphics(); 0 means no widescreen (native 640 layout).
 int g_screen2DOffsetX = 0;
 
-// Side-bar style for full-width 2D content: false = crisp edge extension
-// (logos, title, stills), true = ambient blur (main cinematic videos).
-bool g_screen2DBlurBars = false;
+// Side-bar style for full-width 2D content. Default = ambient blur everywhere;
+// set to false (crisp solid edge color) only for the exceptions: the intro
+// logos and the title/main-menu screen.
+bool g_screen2DBlurBars = true;
 
 // --- Widescreen "ambient" blurred side bars (TikTok/Shorts-style background) ---
 // The game renders in 8-bit paletted mode, so we blur in RGB (via the current
