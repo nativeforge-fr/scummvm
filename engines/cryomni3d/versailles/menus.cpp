@@ -232,8 +232,8 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 					// Widescreen standalone: custom entry 1000 = graphics filtering toggle
 					Common::String entryText;
 					if (msgId == 1000) {
-						entryText = Common::String("Filtrage image : ") +
-						            (ConfMan.getBool("filtering") ? "OUI" : "NON");
+						bool filt = g_system->getFeatureState(OSystem::kFeatureFilteringMode);
+						entryText = Common::String("Filtrage image : ") + (filt ? "OUI" : "NON");
 					} else {
 						entryText = _messages[msgId];
 					}
@@ -445,10 +445,10 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				waitMouseRelease();
 			} else if (selectedMsg == 1000) {
 				// Widescreen standalone: toggle graphics filtering (bilinear).
-				bool newVal = !ConfMan.getBool("filtering");
-				ConfMan.setBool("filtering", newVal);
+				bool newVal = !g_system->getFeatureState(OSystem::kFeatureFilteringMode);
 				g_system->setFeatureState(OSystem::kFeatureFilteringMode, newVal);
-				drawState = 1; // entry text (OUI/NON) is redrawn from ConfMan
+				ConfMan.setBool("filtering", newVal);
+				drawState = 1; // entry text (OUI/NON) is redrawn from the backend state
 				selectedMsg = 0;
 				waitMouseRelease();
 			}
