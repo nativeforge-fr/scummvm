@@ -232,8 +232,9 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 					// Widescreen standalone: custom entry 1000 = graphics filtering toggle
 					Common::String entryText;
 					if (msgId == 1000) {
+						// 11 leading spaces to match the indent of the other menu entries
 						bool filt = g_system->getFeatureState(OSystem::kFeatureFilteringMode);
-						entryText = Common::String("Filtrage image : ") + (filt ? "OUI" : "NON");
+						entryText = Common::String("           Filtrage image : ") + (filt ? "OUI" : "NON");
 					} else {
 						entryText = _messages[msgId];
 					}
@@ -445,8 +446,12 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				waitMouseRelease();
 			} else if (selectedMsg == 1000) {
 				// Widescreen standalone: toggle graphics filtering (bilinear).
+				// setFeatureState(kFeatureFilteringMode) must run inside a GFX
+				// transaction (the OpenGL backend asserts otherwise).
 				bool newVal = !g_system->getFeatureState(OSystem::kFeatureFilteringMode);
+				g_system->beginGFXTransaction();
 				g_system->setFeatureState(OSystem::kFeatureFilteringMode, newVal);
+				g_system->endGFXTransaction();
 				ConfMan.setBool("filtering", newVal);
 				drawState = 1; // entry text (OUI/NON) is redrawn from the backend state
 				selectedMsg = 0;
