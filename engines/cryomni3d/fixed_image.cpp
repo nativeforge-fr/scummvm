@@ -230,15 +230,15 @@ void ZonFixedImage::manage() {
 	        _engine.getCurrentMouseButton() == 2 ||
 	        mousePos.y > _configuration->toolbarTriggerY) {
 		// The widescreen HUD toolbar is drawn at full physical width, but a fixed
-		// image is pillarboxed at g_screen2DOffsetX. Give the toolbar a full-width
-		// view with the image placed at that same offset, so it composes and
-		// animates (appear/disappear) without artifacts in the side bars.
-		int offX = g_screen2DOffsetX;
-		int screenW = g_system->getWidth();
-		if (offX > 0 && (int)_imageSurface->w + offX <= screenW) {
-			Graphics::ManagedSurface wide(screenW, _imageSurface->h, _imageSurface->format);
-			wide.clear(0);
-			wide.blitFrom(*_imageSurface, Common::Point(offX, 0));
+		// image is pillarboxed at g_screen2DOffsetX. Compose the toolbar over a
+		// snapshot of the ACTUAL screen (which already holds the pillarboxed image
+		// plus its real side bars), so it aligns and animates without artifacts
+		// and with matching bar colors.
+		Graphics::Surface *screen = (g_screen2DOffsetX > 0) ? g_system->lockScreen() : nullptr;
+		if (screen) {
+			Graphics::ManagedSurface wide(screen->w, screen->h, screen->format);
+			wide.blitFrom(*screen);
+			g_system->unlockScreen();
 			_engine.displayToolbar(wide.surfacePtr());
 		} else {
 			_engine.displayToolbar(_imageSurface);
