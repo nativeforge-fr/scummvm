@@ -318,6 +318,17 @@ void CryOmni3DEngine::waitMouseRelease() {
 int g_screen2DOffsetX = 0;
 
 void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h) {
+	if (g_screen2DOffsetX != 0 && x == 0) {
+		// Full-width 2D content: keep the pillarbox side bars black so
+		// transitions/videos don't leave stale content on the sides.
+		int sw = g_system->getWidth();
+		int sh = g_system->getHeight();
+		g_system->fillScreen(Common::Rect(0, 0, g_screen2DOffsetX, sh), 0);
+		int rightStart = g_screen2DOffsetX + w;
+		if (rightStart < sw) {
+			g_system->fillScreen(Common::Rect(rightStart, 0, sw, sh), 0);
+		}
+	}
 	g_system->copyRectToScreen(buf, pitch, x + g_screen2DOffsetX, y, w, h);
 }
 
