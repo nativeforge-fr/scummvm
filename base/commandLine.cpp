@@ -2033,6 +2033,17 @@ Common::String parseCommandLine(Common::StringMap &settings, int argc, const cha
 bool processSettings(Common::String &command, Common::StringMap &settings, Common::Error &err) {
 	err = Common::kNoError;
 
+#ifdef VERSAILLES_STANDALONE
+	// Standalone Versailles build: when launched with no target/command
+	// (e.g. a double-click), behave as "--path=game_data --auto-detect" so
+	// the bundled game boots directly instead of showing the ScummVM launcher.
+	if (command.empty() && !settings.contains("game")) {
+		if (!settings.contains("path"))
+			settings["path"] = "game_data";
+		command = "auto-detect";
+	}
+#endif
+
 #ifndef DISABLE_COMMAND_LINE
 
 	// Check the --game argument refers to a known game id.
