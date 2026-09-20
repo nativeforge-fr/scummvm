@@ -269,6 +269,12 @@ public:
 	void makeTranslucent(Graphics::Surface &dst, const Graphics::Surface &src) const override;
 
 	bool displayToolbar(const Graphics::Surface *original) override { return _toolbar.displayToolbar(original); };
+
+	// Widescreen 2D display mode per content category (ConfMan-backed). Returns
+	// kScreen2DBarMode* for the given category key, or defMode if unset. Public
+	// so the documentation/fixed-image helpers can query it too.
+	int barModeForCategory(const char *confKey, int defMode) const;
+
 	bool hasPlaceDocumentation() override;
 	bool displayPlaceDocumentation() override;
 	uint displayOptions() override;

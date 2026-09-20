@@ -68,29 +68,22 @@ namespace CryOmni3D {
 // engine after initGraphics().
 extern int g_screen2DOffsetX;
 
-// When true, full-width 2D content gets the ambient blurred side bars; when
-// false (default), the side bars cleanly extend the image's edge column
-// (crisp, no blur/dim). Targeted per file: set true only for the main cinematic
-// video(s), false for logos/title/stills.
-extern bool g_screen2DBlurBars;
+// How full-width (4:3) 2D content is fitted onto the widescreen canvas.
+enum {
+	kScreen2DBarModeAmbient = 0, // blurred ambient side bars (TikTok/Shorts style)
+	kScreen2DBarModeBlack   = 1, // plain black pillarbox bars
+	kScreen2DBarModeStretch = 2  // stretch the content to fill the width (no bars)
+};
+// Current mode for the 2D content being drawn. Set per category by the engine
+// (transitions default to ambient bars, everything else to stretch).
+extern int g_screen2DBarMode;
 
-// When true (crisp mode only), both side bars use the LEFT bar's chosen
-// dominant color instead of each bar sampling its own adjacent edge column.
-// Used for menus so the two bars always match. Restored by Screen2DBarsGuard.
-extern bool g_screen2DMirrorLeftBar;
-
-// RAII helper: force crisp (or blurred) side bars for the scope of a static
-// screen (menus, documentation, ...), restoring the previous mode on exit.
-// mirrorLeft (crisp only) copies the left bar's color onto the right bar.
-struct Screen2DBarsGuard {
-	bool _old;
-	bool _oldMirror;
-	explicit Screen2DBarsGuard(bool blur, bool mirrorLeft = false)
-		: _old(g_screen2DBlurBars), _oldMirror(g_screen2DMirrorLeftBar) {
-		g_screen2DBlurBars = blur;
-		g_screen2DMirrorLeftBar = mirrorLeft;
-	}
-	~Screen2DBarsGuard() { g_screen2DBlurBars = _old; g_screen2DMirrorLeftBar = _oldMirror; }
+// RAII helper: force a display mode for the scope of a static screen (menus,
+// documentation, fixed images, ...), restoring the previous mode on exit.
+struct Screen2DBarModeGuard {
+	int _old;
+	explicit Screen2DBarModeGuard(int mode) : _old(g_screen2DBarMode) { g_screen2DBarMode = mode; }
+	~Screen2DBarModeGuard() { g_screen2DBarMode = _old; }
 };
 
 // Blit a 640-space 2D surface centered on the (possibly wider) physical screen.
