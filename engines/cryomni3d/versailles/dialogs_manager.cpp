@@ -37,6 +37,9 @@ Versailles_DialogsManager::Versailles_DialogsManager(CryOmni3DEngine_Versailles 
 }
 
 bool Versailles_DialogsManager::play(const Common::String &sequence) {
+	// Dialogs are their own display-mode category (default: ambient bars).
+	Screen2DBarModeGuard _barMode(_engine->barModeForCategory("bars_dialog", kScreen2DBarModeAmbient));
+
 	// Prepare with specific Versailles stuff
 	if (!_engine->preprocessDialog(sequence)) {
 		return false;

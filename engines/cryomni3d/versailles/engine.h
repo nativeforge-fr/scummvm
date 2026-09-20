@@ -278,6 +278,7 @@ public:
 	bool hasPlaceDocumentation() override;
 	bool displayPlaceDocumentation() override;
 	uint displayOptions() override;
+	void displayDisplaySettings(); // widescreen standalone: per-category 2D display modes
 	bool shouldAbort() override;
 
 private:

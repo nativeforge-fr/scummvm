@@ -453,33 +453,42 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h) {
 	int screenWidth = g_system->getWidth();
 
-	// Stretch mode: full-width 2D content is scaled horizontally to fill the
-	// whole physical width (no bars). Only whole-surface blits (x == 0) are
-	// stretched; partial updates fall through to the normal pillarbox path.
+	// Stretch mode: 2D content is scaled horizontally so the 640-wide layout fills
+	// the whole physical width (no bars). This handles ANY x (not just full-screen
+	// blits), so partial updates (e.g. a talking character during a dialog) are
+	// stretched and positioned consistently with the rest of the screen.
 	if (g_screen2DBarMode == kScreen2DBarModeStretch && g_screen2DOffsetX != 0 &&
-	        x == 0 && w > 0 && h > 0) {
-		static byte *stretchBuf = nullptr;
-		static int stretchCap = 0;
-		int need = screenWidth * h;
-		if (need > stretchCap) {
-			delete[] stretchBuf;
-			stretchBuf = new byte[need];
-			stretchCap = need;
-		}
-		const byte *s = (const byte *)buf;
-		for (int yy = 0; yy < h; yy++) {
-			const byte *srow = s + yy * pitch;
-			byte *drow = stretchBuf + yy * screenWidth;
-			for (int xx = 0; xx < screenWidth; xx++) {
-				drow[xx] = srow[(xx * w) / screenWidth];
+	        w > 0 && h > 0) {
+		int contentW = screenWidth - 2 * g_screen2DOffsetX; // the 640-wide 2D layout
+		if (contentW > 0) {
+			int px0 = x * screenWidth / contentW;
+			int px1 = (x + w) * screenWidth / contentW;
+			int ow = px1 - px0;
+			if (px0 < 0) { px0 = 0; }
+			if (px0 + ow > screenWidth) { ow = screenWidth - px0; }
+			int oh = h;
+			if (y + oh > g_system->getHeight()) { oh = g_system->getHeight() - y; }
+			if (ow > 0 && oh > 0) {
+				static byte *stretchBuf = nullptr;
+				static int stretchCap = 0;
+				int need = ow * oh;
+				if (need > stretchCap) {
+					delete[] stretchBuf;
+					stretchBuf = new byte[need];
+					stretchCap = need;
+				}
+				const byte *s = (const byte *)buf;
+				for (int yy = 0; yy < oh; yy++) {
+					const byte *srow = s + yy * pitch;
+					byte *drow = stretchBuf + yy * ow;
+					for (int ox = 0; ox < ow; ox++) {
+						drow[ox] = srow[(ox * w) / ow];
+					}
+				}
+				g_system->copyRectToScreen(stretchBuf, ow, px0, y, ow, oh);
 			}
+			return;
 		}
-		int sh2 = h;
-		if (y + sh2 > g_system->getHeight())
-			sh2 = g_system->getHeight() - y;
-		if (sh2 > 0)
-			g_system->copyRectToScreen(stretchBuf, screenWidth, 0, y, screenWidth, sh2);
-		return;
 	}
 
 	if (g_screen2DOffsetX != 0 && x == 0) {

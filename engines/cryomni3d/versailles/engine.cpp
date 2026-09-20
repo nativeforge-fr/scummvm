@@ -196,6 +196,17 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 	g_screen2DOffsetX = (864 - 640) / 2; // 112
 	setMousePos(Common::Point(320, 200));
 
+	// Bilinear filtering: default OFF. Only honor the value the in-game toggle
+	// persisted in this game's own config domain, ignoring any global/default
+	// "filtering" value inherited from ScummVM.
+	{
+		Common::String dom = ConfMan.getActiveDomainName();
+		bool filt = (!dom.empty() && ConfMan.hasKey("filtering", dom)) ? ConfMan.getBool("filtering") : false;
+		g_system->beginGFXTransaction();
+		g_system->setFeatureState(OSystem::kFeatureFilteringMode, filt);
+		g_system->endGFXTransaction();
+	}
+
 	syncSoundSettings();
 
 	_isPlaying = false;
