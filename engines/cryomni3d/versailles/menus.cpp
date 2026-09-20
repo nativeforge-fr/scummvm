@@ -438,13 +438,13 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				selectedMsg = 0;
 				waitMouseRelease();
 			} else if (selectedMsg == 30) {
-				ConfMan.setBool("subtitles", false);
+				ConfMan.setBool("subtitles", false, Common::ConfigManager::kApplicationDomain); ConfMan.flushToDisk();
 				drawState = 1;
 				menuEntries[selectedBox] = 31;
 				selectedMsg = 0;
 				waitMouseRelease();
 			} else if (selectedMsg == 31) {
-				ConfMan.setBool("subtitles", true);
+				ConfMan.setBool("subtitles", true, Common::ConfigManager::kApplicationDomain); ConfMan.flushToDisk();
 				drawState = 1;
 				menuEntries[selectedBox] = 30;
 				selectedMsg = 0;
@@ -727,14 +727,14 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 				if (box < uint(kNumCats)) {
 					int mode = barModeForCategory(catKeys[box], catDefaults[box]);
 					mode = (mode + 1) % 3;
-					ConfMan.setInt(catKeys[box], mode);
+					ConfMan.setInt(catKeys[box], mode, Common::ConfigManager::kApplicationDomain);
 					ConfMan.flushToDisk();
 				} else if (box == uint(kNumCats)) {
 					bool nv = !g_system->getFeatureState(OSystem::kFeatureFilteringMode);
 					g_system->beginGFXTransaction();
 					g_system->setFeatureState(OSystem::kFeatureFilteringMode, nv);
 					g_system->endGFXTransaction();
-					ConfMan.setBool("filtering", nv);
+					ConfMan.setBool("filtering", nv, Common::ConfigManager::kApplicationDomain);
 					ConfMan.flushToDisk();
 				} else {
 					end = true;

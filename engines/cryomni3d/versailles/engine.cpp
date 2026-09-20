@@ -145,9 +145,10 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 		_audioLanguage = (getLanguage() == Common::ZH_TWN) ? Common::EN_ANY : getLanguage();
 	}
 	// Subtitles on by default (needed for cross-language play and the Chinese
-	// text-only version), unless the player already chose otherwise.
-	if (!ConfMan.hasKey("subtitles")) {
-		ConfMan.setBool("subtitles", true);
+	// text-only version), unless the player already chose otherwise. Stored in
+	// the persistent application domain.
+	if (!ConfMan.hasKey("subtitles", Common::ConfigManager::kApplicationDomain)) {
+		ConfMan.setBool("subtitles", true, Common::ConfigManager::kApplicationDomain);
 	}
 	applyLanguageOverlays();
 
@@ -210,12 +211,12 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 	g_screen2DOffsetX = (864 - 640) / 2; // 112
 	setMousePos(Common::Point(320, 200));
 
-	// Bilinear filtering: default OFF. Only honor the value the in-game toggle
-	// persisted in this game's own config domain, ignoring any global/default
-	// "filtering" value inherited from ScummVM.
+	// Bilinear filtering: default OFF. Honor the value the in-game toggle
+	// persisted in the application domain (our settings live there because the
+	// standalone runs in a transient game domain).
 	{
-		Common::String dom = ConfMan.getActiveDomainName();
-		bool filt = (!dom.empty() && ConfMan.hasKey("filtering", dom)) ? ConfMan.getBool("filtering") : false;
+		bool filt = ConfMan.hasKey("filtering", Common::ConfigManager::kApplicationDomain)
+		            ? ConfMan.getBool("filtering") : false;
 		g_system->beginGFXTransaction();
 		g_system->setFeatureState(OSystem::kFeatureFilteringMode, filt);
 		g_system->endGFXTransaction();
@@ -2205,7 +2206,9 @@ void CryOmni3DEngine_Versailles::changeTextLanguage(Common::Language lang) {
 	applyLanguageOverlays();
 
 	const char *code = languageCode(lang);
-	ConfMan.set("versailles_language", code ? code : "fr");
+	// Persist in the global (application) domain so it survives relaunch: the
+	// standalone auto-detects the game into a transient domain that is not saved.
+	ConfMan.set("versailles_language", code ? code : "fr", Common::ConfigManager::kApplicationDomain);
 	ConfMan.flushToDisk();
 
 	reloadTextData();
@@ -2219,7 +2222,7 @@ void CryOmni3DEngine_Versailles::changeAudioLanguage(Common::Language lang) {
 	applyLanguageOverlays();
 
 	const char *code = languageCode(lang);
-	ConfMan.set("versailles_audio_language", code ? code : "fr");
+	ConfMan.set("versailles_audio_language", code ? code : "fr", Common::ConfigManager::kApplicationDomain);
 	ConfMan.flushToDisk();
 
 	// Only the voice-name padding needs updating; voices/cinematics are loaded
