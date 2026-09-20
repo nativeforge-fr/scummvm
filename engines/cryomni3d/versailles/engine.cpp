@@ -1851,6 +1851,10 @@ void CryOmni3DEngine_Versailles::handleFixedImg(const FixedImgCallback &callback
 		return;
 	}
 
+	// Fixed images / close-ups (paintings, objects). Display mode configurable
+	// per category (default: stretch to fill the screen).
+	Screen2DBarModeGuard _barMode(barModeForCategory("bars_fixedimage", kScreen2DBarModeStretch));
+
 	ZonFixedImage::CallbackFunctor *functor =
 	    new Common::Functor1Mem<ZonFixedImage *, void, CryOmni3DEngine_Versailles>(this, callback);
 	_fixedImage->run(functor);
@@ -1882,13 +1886,12 @@ void CryOmni3DEngine_Versailles::playInGameVideo(const Common::Path &filename,
 		showMouse(false);
 	}
 	lockPalette(0, 241);
-	// In-game videos (transitions, character animations) are detailed motion:
-	// keep the ambient blurred side bars (the default).
-	g_screen2DBlurBars = true;
+	// In-game videos = room transitions / character animations. Default to the
+	// ambient blurred side bars (user-configurable per category).
+	Screen2DBarModeGuard _barMode(barModeForCategory("bars_transition", kScreen2DBarModeAmbient));
 	// Videos are like music because if you mute music in game it will mute videos soundtracks
 	playHNM(filename, Audio::Mixer::kMusicSoundType, nullptr,
 	        static_cast<HNMCallback>(&CryOmni3DEngine_Versailles::drawCountdownVideo));
-	g_screen2DBlurBars = true;
 	clearKeys();
 	unlockPalette();
 	if (restoreCursorPalette) {
@@ -1902,11 +1905,9 @@ void CryOmni3DEngine_Versailles::playInGameVideo(const Common::Path &filename,
 void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filename) {
 	Common::HashMap<Common::String, Common::Array<SubtitleEntry> >::const_iterator it;
 
-	// Widescreen side bars: everything is blurred by default; only the intro
-	// logos (logo.hnm, jvclogo.hnm) get crisp solid-color bars.
-	Common::String lf = filename;
-	lf.toLowercase();
-	g_screen2DBlurBars = !lf.contains("logo");
+	// Cinematics (intro logos + story videos). Configurable per category
+	// (default: stretch to fill the screen).
+	Screen2DBarModeGuard _barMode(barModeForCategory("bars_cinematic", kScreen2DBarModeStretch));
 
 	if (!showSubtitles() ||
 	        (it = _subtitles.find(filename)) == _subtitles.end() ||
@@ -1914,7 +1915,6 @@ void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filena
 		// No subtitle, don't try to handle them frame by frame
 		// Videos are like music because if you mute music in game it will mute videos soundtracks
 		playHNM(getFilePath(kFileTypeTransScene, filename), Audio::Mixer::kMusicSoundType);
-		g_screen2DBlurBars = true;
 		return;
 	}
 
@@ -1939,7 +1939,6 @@ void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filena
 
 	clearKeys();
 	unlockPalette();
-	g_screen2DBlurBars = true;
 }
 
 void CryOmni3DEngine_Versailles::drawVideoSubtitles(uint frameNum) {
@@ -2189,6 +2188,14 @@ void CryOmni3DEngine_Versailles::changeAudioLanguage(Common::Language lang) {
 // The Chinese (ZH_TWN) strings are Big5 / CP950 byte sequences, matching the
 // encoding of the game's own Chinese menu strings (setupFonts loads the CJK
 // font with kWindows950), so they render with the tw12 font.
+int CryOmni3DEngine_Versailles::barModeForCategory(const char *confKey, int defMode) const {
+	int m = ConfMan.hasKey(confKey) ? ConfMan.getInt(confKey) : defMode;
+	if (m < kScreen2DBarModeAmbient || m > kScreen2DBarModeStretch) {
+		m = defMode;
+	}
+	return m;
+}
+
 const char *CryOmni3DEngine_Versailles::uiLabelFilter() const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return "Filtrage image";

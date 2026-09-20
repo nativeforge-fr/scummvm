@@ -318,11 +318,12 @@ void CryOmni3DEngine::waitMouseRelease() {
 // initGraphics(); 0 means no widescreen (native 640 layout).
 int g_screen2DOffsetX = 0;
 
-// Side-bar style for full-width 2D content. Default = ambient blur everywhere;
-// set to false (crisp solid edge color) only for the exceptions: the intro
-// logos and the title/main-menu screen.
-bool g_screen2DBlurBars = true;
-bool g_screen2DMirrorLeftBar = false;
+// How full-width 2D content is fitted onto the widescreen canvas. Baseline =
+// ambient bars (safe for content with partial updates like dialogs, which don't
+// stretch cleanly). The engine overrides it per category via Screen2DBarModeGuard
+// (menus/cinematics/fixed images/documentation default to stretch; room
+// transitions to ambient), from the user's settings.
+int g_screen2DBarMode = kScreen2DBarModeAmbient;
 
 // --- Widescreen "ambient" blurred side bars (TikTok/Shorts-style background) ---
 // The game renders in 8-bit paletted mode, so we blur in RGB (via the current
@@ -359,38 +360,22 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 	if (g_screen2DOffsetX <= 0 || sw <= 0 || sh <= 0)
 		return;
 
-	// Crisp path (logos, title, stills): fill each side bar with ONE solid color
-	// = the dominant color of the source column that touches that bar (the pixel
-	// adjacent to the bar edge). E.g. a plain white intro screen -> white bars.
-	if (!g_screen2DBlurBars) {
-		int leftIdx = -1;
-		for (int pass = 0; pass < 2; pass++) {
-			int x0 = (pass == 0) ? 0 : (g_screen2DOffsetX + contentW);
-			int x1 = (pass == 0) ? g_screen2DOffsetX : screenW;
-			if (x1 <= x0)
-				continue;
-			int domIdx;
-			if (pass == 1 && g_screen2DMirrorLeftBar && leftIdx >= 0) {
-				// Menus: reuse the left bar's color for the right bar so both match.
-				domIdx = leftIdx;
-			} else {
-				int edgeX = (pass == 0) ? 0 : (sw - 1);
-				int hist[256];
-				memset(hist, 0, sizeof(hist));
-				for (int y = 0; y < sh; y++)
-					hist[src[y * pitch + edgeX]]++;
-				domIdx = 0;
-				int domCnt = -1;
-				for (int i = 0; i < 256; i++)
-					if (hist[i] > domCnt) { domCnt = hist[i]; domIdx = i; }
-			}
-			if (pass == 0)
-				leftIdx = domIdx;
-			g_system->fillScreen(Common::Rect(x0, 0, x1, screenH), domIdx);
-		}
+	// Black bars: plain black pillarbox (use the palette index nearest to black).
+	if (g_screen2DBarMode == kScreen2DBarModeBlack) {
+		byte pal[768];
+		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+		if (!s_lutValid || memcmp(pal, s_lutPalette, 768) != 0)
+			buildNearestLUT(pal);
+		byte blackIdx = s_nearestLUT[0]; // nearest palette entry to RGB(0,0,0)
+		if (g_screen2DOffsetX > 0)
+			g_system->fillScreen(Common::Rect(0, 0, g_screen2DOffsetX, screenH), blackIdx);
+		int rx0 = g_screen2DOffsetX + contentW;
+		if (rx0 < screenW)
+			g_system->fillScreen(Common::Rect(rx0, 0, screenW, screenH), blackIdx);
 		return;
 	}
 
+	// Ambient blurred bars (kScreen2DBarModeAmbient).
 	byte pal[768];
 	g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 	if (!s_lutValid || memcmp(pal, s_lutPalette, 768) != 0)
@@ -466,9 +451,40 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 }
 
 void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h) {
+	int screenWidth = g_system->getWidth();
+
+	// Stretch mode: full-width 2D content is scaled horizontally to fill the
+	// whole physical width (no bars). Only whole-surface blits (x == 0) are
+	// stretched; partial updates fall through to the normal pillarbox path.
+	if (g_screen2DBarMode == kScreen2DBarModeStretch && g_screen2DOffsetX != 0 &&
+	        x == 0 && w > 0 && h > 0) {
+		static byte *stretchBuf = nullptr;
+		static int stretchCap = 0;
+		int need = screenWidth * h;
+		if (need > stretchCap) {
+			delete[] stretchBuf;
+			stretchBuf = new byte[need];
+			stretchCap = need;
+		}
+		const byte *s = (const byte *)buf;
+		for (int yy = 0; yy < h; yy++) {
+			const byte *srow = s + yy * pitch;
+			byte *drow = stretchBuf + yy * screenWidth;
+			for (int xx = 0; xx < screenWidth; xx++) {
+				drow[xx] = srow[(xx * w) / screenWidth];
+			}
+		}
+		int sh2 = h;
+		if (y + sh2 > g_system->getHeight())
+			sh2 = g_system->getHeight() - y;
+		if (sh2 > 0)
+			g_system->copyRectToScreen(stretchBuf, screenWidth, 0, y, screenWidth, sh2);
+		return;
+	}
+
 	if (g_screen2DOffsetX != 0 && x == 0) {
-		// Full-width 2D content: fill the pillarbox side bars with an ambient
-		// blurred version of the image instead of leaving stale content.
+		// Full-width 2D content: fill the pillarbox side bars (ambient blur or
+		// plain black) instead of leaving stale content.
 		drawBlurredSideBars((const byte *)buf, pitch, w, h, w);
 	}
 
@@ -495,16 +511,31 @@ void copyRectToScreen2D(const void *buf, int pitch, int x, int y, int w, int h) 
 }
 
 void CryOmni3DEngine::setMousePos(const Common::Point &point) {
-	// point is given in 2D virtual-screen coords: warp to physical.
-	g_system->warpMouse(point.x + g_screen2DOffsetX, point.y);
+	// point is given in 2D virtual-screen (640) coords: warp to physical.
+	int physX = point.x + g_screen2DOffsetX;
+	if (g_screen2DBarMode == kScreen2DBarModeStretch && g_screen2DOffsetX > 0) {
+		// Stretch: 2D content fills the whole width, so scale instead of offset.
+		int screenW = g_system->getWidth();
+		int contentW = screenW - 2 * g_screen2DOffsetX;
+		if (contentW > 0)
+			physX = point.x * screenW / contentW;
+	}
+	g_system->warpMouse(physX, point.y);
 	// Ensure to update mouse position in event manager
 	pollEvents();
 }
 
 Common::Point CryOmni3DEngine::getMousePos() {
-	// Return 2D virtual-screen coords (used by all 2D UI hit-testing).
+	// Return 2D virtual-screen (640) coords (used by all 2D UI hit-testing).
 	Common::Point p = g_system->getEventManager()->getMousePos();
-	p.x -= g_screen2DOffsetX;
+	if (g_screen2DBarMode == kScreen2DBarModeStretch && g_screen2DOffsetX > 0) {
+		int screenW = g_system->getWidth();
+		int contentW = screenW - 2 * g_screen2DOffsetX;
+		if (contentW > 0)
+			p.x = p.x * contentW / screenW;
+	} else {
+		p.x -= g_screen2DOffsetX;
+	}
 	return p;
 }
 
