@@ -106,9 +106,9 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 	menuEntries.push_back(28);
 	menuEntries.push_back(29);
 	menuEntries.push_back(48);
-	menuEntries.push_back(1000); // Widescreen standalone: graphics filtering toggle
 	menuEntries.push_back(1001); // Widescreen standalone: voice (audio) language
 	menuEntries.push_back(1002); // Widescreen standalone: text (subtitle) language
+	menuEntries.push_back(1003); // Widescreen standalone: graphics options sub-menu
 	menuEntries.push_back(30);
 	menuEntries.push_back(32);
 #if 0
@@ -239,10 +239,15 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 
 					// Widescreen standalone: custom entry 1000 = graphics filtering toggle
 					Common::String entryText;
-					if (msgId == 1000) {
-						// 11 leading spaces to match the indent of the other menu entries
-						bool filt = g_system->getFeatureState(OSystem::kFeatureFilteringMode);
-						entryText = Common::String("           ") + uiLabelFilter() + " : " + uiLabelOnOff(filt);
+					if (msgId == 1003) {
+						// Graphics options sub-menu entry (11-space indent).
+						const char *lbl;
+						switch (getLanguage()) {
+						case Common::FR_FRA: lbl = "Options graphiques"; break;
+						case Common::DE_DEU: lbl = "Grafikoptionen"; break;
+						default:             lbl = "Graphics options"; break;
+						}
+						entryText = Common::String("           ") + lbl;
 					} else if (msgId == 1001) {
 						entryText = Common::String("           ") + uiLabelVoiceLang() + " : " +
 						            languageNameLocalized(_audioLanguage);
@@ -458,18 +463,15 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				menuEntries[selectedBox] = 32;
 				selectedMsg = 0;
 				waitMouseRelease();
-			} else if (selectedMsg == 1000) {
-				// Widescreen standalone: toggle graphics filtering (bilinear).
-				// setFeatureState(kFeatureFilteringMode) must run inside a GFX
-				// transaction (the OpenGL backend asserts otherwise).
-				bool newVal = !g_system->getFeatureState(OSystem::kFeatureFilteringMode);
-				g_system->beginGFXTransaction();
-				g_system->setFeatureState(OSystem::kFeatureFilteringMode, newVal);
-				g_system->endGFXTransaction();
-				ConfMan.setBool("filtering", newVal);
-				drawState = 1; // entry text (OUI/NON) is redrawn from the backend state
-				selectedMsg = 0;
+			} else if (selectedMsg == 1003) {
+				// Widescreen standalone: open the graphics options sub-menu
+				// (per-category display mode + bilinear filtering). It reloads the
+				// palette/fonts, so re-init this screen on the next draw too.
 				waitMouseRelease();
+				displayDisplaySettings();
+				resetScreen = true;
+				drawState = 1;
+				selectedMsg = 0;
 			} else if (selectedMsg == 1001) {
 				// Cycle the VOICE (audio) language (no Chinese dub).
 				changeAudioLanguage(nextAudioLanguage(_audioLanguage));
@@ -579,6 +581,160 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 
 	delete imageDecoder;
 	return selectedMsg;
+}
+
+// --- Graphics settings sub-menu (widescreen standalone) --------------------
+// Labels in the current text language (ASCII, font-safe; ZH falls back to EN).
+static const char *gfxCatLabel(Common::Language lang, int cat) {
+	static const char *const fr[] = {"Cinematiques", "Transitions", "Images fixes", "Menus", "Documentation", "Dialogues"};
+	static const char *const en[] = {"Cinematics", "Transitions", "Fixed images", "Menus", "Documentation", "Dialogues"};
+	static const char *const de[] = {"Filme", "Uebergaenge", "Standbilder", "Menues", "Dokumentation", "Dialoge"};
+	if (cat < 0 || cat > 5) {
+		cat = 0;
+	}
+	switch (lang) {
+	case Common::FR_FRA: return fr[cat];
+	case Common::DE_DEU: return de[cat];
+	default:             return en[cat];
+	}
+}
+
+static const char *gfxModeLabel(Common::Language lang, int mode) {
+	static const char *const fr[] = {"Ambiance", "Noir", "Etire"};
+	static const char *const en[] = {"Ambient", "Black", "Stretch"};
+	static const char *const de[] = {"Ambiente", "Schwarz", "Gestreckt"};
+	if (mode < 0 || mode > 2) {
+		mode = 0;
+	}
+	switch (lang) {
+	case Common::FR_FRA: return fr[mode];
+	case Common::DE_DEU: return de[mode];
+	default:             return en[mode];
+	}
+}
+
+static const char *gfxBackLabel(Common::Language lang) {
+	switch (lang) {
+	case Common::FR_FRA: return "Retour";
+	case Common::DE_DEU: return "Zurueck";
+	default:             return "Back";
+	}
+}
+
+void CryOmni3DEngine_Versailles::displayDisplaySettings() {
+	static const char *const catKeys[] = {
+		"bars_cinematic", "bars_transition", "bars_fixedimage",
+		"bars_menu", "bars_doc", "bars_dialog"
+	};
+	static const int catDefaults[] = {
+		kScreen2DBarModeStretch, kScreen2DBarModeAmbient, kScreen2DBarModeStretch,
+		kScreen2DBarModeStretch, kScreen2DBarModeStretch, kScreen2DBarModeAmbient
+	};
+	const int kNumCats = 6;
+	const int kNumRows = kNumCats + 2; // categories + filter toggle + back
+
+	// This screen is itself menu content: honor the menu display mode.
+	Screen2DBarModeGuard _barsGuard(barModeForCategory("bars_menu", kScreen2DBarModeStretch));
+
+	Image::ImageDecoder *imageDecoder = loadHLZ(getFilePath(kFileTypeMenu, "option.hlz"));
+	if (!imageDecoder) {
+		return;
+	}
+	const Graphics::Surface *bgFrame = imageDecoder->getSurface();
+	Graphics::ManagedSurface surface;
+	surface.create(bgFrame->w, bgFrame->h, bgFrame->format);
+
+	MouseBoxes boxes(kNumRows);
+	setCursor(181);
+	showMouse(true);
+
+	uint hoveredBox = uint(-1);
+	bool end = false;
+	int drawState = 1;
+	bool resetScreen = true;
+	bool forceEvents = true;
+
+	while (!shouldAbort() && !end) {
+		if (resetScreen) {
+			setPalette(imageDecoder->getPalette().data(), 0, imageDecoder->getPalette().size());
+			setPalette(_cursorPalette + 240 * 3, 240, 8);
+			_fontManager.setCurrentFont(3);
+			_fontManager.setTransparentBackground(true);
+			_fontManager.setForeColor(243);
+			_fontManager.setLineHeight(14);
+			_fontManager.setSpaceWidth(0);
+			_fontManager.setCharSpacing(1);
+			_fontManager.setSurface(&surface);
+			resetScreen = false;
+		}
+		if (drawState > 0) {
+			surface.blitFrom(*bgFrame);
+			drawMenuTitle(&surface, 243);
+
+			boxes.reset();
+			uint top = 150;
+			for (int row = 0; row < kNumRows; row++) {
+				Common::String txt("           "); // 11-space indent like other menus
+				if (row < kNumCats) {
+					int mode = barModeForCategory(catKeys[row], catDefaults[row]);
+					txt += Common::String(gfxCatLabel(getLanguage(), row)) + " : " +
+					       gfxModeLabel(getLanguage(), mode);
+				} else if (row == kNumCats) {
+					bool filt = g_system->getFeatureState(OSystem::kFeatureFilteringMode);
+					txt += Common::String(uiLabelFilter()) + " : " + uiLabelOnOff(filt);
+				} else {
+					txt += gfxBackLabel(getLanguage());
+				}
+				uint bottom = top;
+				top += 24;
+				uint width = _fontManager.getStrWidth(txt);
+				boxes.setupBox(row, 144, top - 39, width + 144, bottom);
+				_fontManager.setForeColor((uint(row) == hoveredBox) ? 240 : 243);
+				_fontManager.displayStr(144, top - 39, txt);
+			}
+			copyRectToScreen2D(surface.getPixels(), surface.pitch, 0, 0, surface.w, surface.h);
+			drawState = 0;
+		}
+		g_system->updateScreen();
+		g_system->delayMillis(10);
+
+		if (pollEvents() || forceEvents) {
+			forceEvents = false;
+			Common::Point mouse = getMousePos();
+			uint box = uint(-1);
+			for (int row = 0; row < kNumRows; row++) {
+				if (boxes.hitTest(row, mouse)) {
+					box = row;
+					break;
+				}
+			}
+			if (box != hoveredBox) {
+				hoveredBox = box;
+				drawState = 1;
+			}
+			if (box != uint(-1) && getDragStatus() == 2) {
+				if (box < uint(kNumCats)) {
+					int mode = barModeForCategory(catKeys[box], catDefaults[box]);
+					mode = (mode + 1) % 3;
+					ConfMan.setInt(catKeys[box], mode);
+					ConfMan.flushToDisk();
+				} else if (box == uint(kNumCats)) {
+					bool nv = !g_system->getFeatureState(OSystem::kFeatureFilteringMode);
+					g_system->beginGFXTransaction();
+					g_system->setFeatureState(OSystem::kFeatureFilteringMode, nv);
+					g_system->endGFXTransaction();
+					ConfMan.setBool("filtering", nv);
+					ConfMan.flushToDisk();
+				} else {
+					end = true;
+				}
+				drawState = 1;
+				waitMouseRelease();
+			}
+		}
+	}
+
+	delete imageDecoder;
 }
 
 uint CryOmni3DEngine_Versailles::displayYesNoBox(Graphics::ManagedSurface &surface,
