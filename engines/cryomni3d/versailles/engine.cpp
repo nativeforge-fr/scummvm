@@ -47,6 +47,7 @@ namespace Versailles {
 // Widescreen standalone helpers, defined at the end of this file.
 static Common::FSNode childCaseless(const Common::FSNode &parent, const Common::String &name);
 static Common::Language parseLanguageCode(const Common::String &code, Common::Language fallback);
+static Common::Language osDefaultLanguage(); // system language, mapped to a supported one (else English)
 
 const FixedImageConfiguration CryOmni3DEngine_Versailles::kFixedImageConfiguration = {
 	45, 223, 243, 238, 226, 198, 136, 145, 99, 113,
@@ -131,9 +132,22 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 	// lang/<code>/ (text_datasv + text_install for text, audio_datasv for audio).
 	if (ConfMan.hasKey("versailles_language")) {
 		setCurrentLanguage(parseLanguageCode(ConfMan.get("versailles_language"), getLanguage()));
+	} else {
+		// First launch: default the TEXT language to the PC's system language
+		// (French/English/German/Chinese), falling back to English.
+		setCurrentLanguage(osDefaultLanguage());
 	}
 	if (ConfMan.hasKey("versailles_audio_language")) {
 		_audioLanguage = parseLanguageCode(ConfMan.get("versailles_audio_language"), _audioLanguage);
+	} else {
+		// Chinese has no dub, so its audio defaults to English; otherwise match
+		// the text language.
+		_audioLanguage = (getLanguage() == Common::ZH_TWN) ? Common::EN_ANY : getLanguage();
+	}
+	// Subtitles on by default (needed for cross-language play and the Chinese
+	// text-only version), unless the player already chose otherwise.
+	if (!ConfMan.hasKey("subtitles")) {
+		ConfMan.setBool("subtitles", true);
 	}
 	applyLanguageOverlays();
 
@@ -2104,6 +2118,23 @@ static Common::Language parseLanguageCode(const Common::String &code, Common::La
 		return Common::ZH_TWN;
 	}
 	return fallback;
+}
+
+static Common::Language osDefaultLanguage() {
+	// g_system->getSystemLanguage() returns a POSIX-style locale ("fr_FR",
+	// "de_DE", "zh_TW", "en_US", ...) on both Windows and Linux. Map its language
+	// part to a supported language; anything else falls back to English.
+	Common::String loc = g_system->getSystemLanguage();
+	Common::String code2 = (loc.size() >= 2) ? Common::String(loc.c_str(), 2) : Common::String("en");
+	code2.toLowercase();
+	if (code2 == "fr") {
+		return Common::FR_FRA;
+	} else if (code2 == "de") {
+		return Common::DE_DEU;
+	} else if (code2 == "zh") {
+		return Common::ZH_TWN;
+	}
+	return Common::EN_ANY;
 }
 
 // Mount a lang/<code>/<subdir> as a SearchMan directory under a stable name so
