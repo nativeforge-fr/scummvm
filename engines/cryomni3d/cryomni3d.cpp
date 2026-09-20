@@ -324,6 +324,7 @@ int g_screen2DOffsetX = 0;
 // (menus/cinematics/fixed images/documentation default to stretch; room
 // transitions to ambient), from the user's settings.
 int g_screen2DBarMode = kScreen2DBarModeAmbient;
+bool g_screen2DBarAmbientSolid = false;
 
 // --- Widescreen "ambient" blurred side bars (TikTok/Shorts-style background) ---
 // The game renders in 8-bit paletted mode, so we blur in RGB (via the current
@@ -375,7 +376,26 @@ static void drawBlurredSideBars(const byte *src, int pitch, int sw, int sh, int 
 		return;
 	}
 
-	// Ambient blurred bars (kScreen2DBarModeAmbient).
+	// Ambient / solid: static screens (logos, menu, documentation) use a plain
+	// solid bar with the dominant colour of the image's left edge column,
+	// mirrored to both sides so they match.
+	if (g_screen2DBarAmbientSolid) {
+		int hist[256];
+		memset(hist, 0, sizeof(hist));
+		for (int y = 0; y < sh; y++)
+			hist[src[y * pitch]]++;
+		int domIdx = 0, domCnt = -1;
+		for (int i = 0; i < 256; i++)
+			if (hist[i] > domCnt) { domCnt = hist[i]; domIdx = i; }
+		if (g_screen2DOffsetX > 0)
+			g_system->fillScreen(Common::Rect(0, 0, g_screen2DOffsetX, screenH), domIdx);
+		int rx0 = g_screen2DOffsetX + contentW;
+		if (rx0 < screenW)
+			g_system->fillScreen(Common::Rect(rx0, 0, screenW, screenH), domIdx);
+		return;
+	}
+
+	// Ambient blurred bars (motion video).
 	byte pal[768];
 	g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 	if (!s_lutValid || memcmp(pal, s_lutPalette, 768) != 0)

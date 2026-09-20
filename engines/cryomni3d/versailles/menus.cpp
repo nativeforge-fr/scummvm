@@ -97,9 +97,9 @@ void CryOmni3DEngine_Versailles::drawMenuTitle(Graphics::ManagedSurface *surface
 }
 
 uint CryOmni3DEngine_Versailles::displayOptions() {
-	// Title / in-game options screen. Display mode configurable per category
-	// (default: stretch to fill the screen).
-	Screen2DBarModeGuard _barsGuard(barModeForCategory("bars_menu", kScreen2DBarModeStretch));
+	// Title / in-game options screen. Static, so ambient uses solid colour bars.
+	// Default mode = ambient.
+	Screen2DBarModeGuard _barsGuard(barModeForCategory("bars_menu", kScreen2DBarModeAmbient), true);
 	Common::Array<int> menuEntries;
 	menuEntries.push_back(26);
 	menuEntries.push_back(27);
@@ -627,14 +627,14 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 		"bars_menu", "bars_doc", "bars_dialog"
 	};
 	static const int catDefaults[] = {
-		kScreen2DBarModeStretch, kScreen2DBarModeAmbient, kScreen2DBarModeStretch,
-		kScreen2DBarModeStretch, kScreen2DBarModeStretch, kScreen2DBarModeAmbient
+		kScreen2DBarModeAmbient, kScreen2DBarModeAmbient, kScreen2DBarModeAmbient,
+		kScreen2DBarModeAmbient, kScreen2DBarModeAmbient, kScreen2DBarModeAmbient
 	};
 	const int kNumCats = 6;
 	const int kNumRows = kNumCats + 2; // categories + filter toggle + back
 
 	// This screen is itself menu content: honor the menu display mode.
-	Screen2DBarModeGuard _barsGuard(barModeForCategory("bars_menu", kScreen2DBarModeStretch));
+	Screen2DBarModeGuard _barsGuard(barModeForCategory("bars_menu", kScreen2DBarModeAmbient), true);
 
 	Image::ImageDecoder *imageDecoder = loadHLZ(getFilePath(kFileTypeMenu, "option.hlz"));
 	if (!imageDecoder) {
@@ -672,7 +672,7 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 			drawMenuTitle(&surface, 243);
 
 			boxes.reset();
-			uint top = 150;
+			uint top = 195; // start below the menu title, like the main options screen
 			for (int row = 0; row < kNumRows; row++) {
 				Common::String txt("           "); // 11-space indent like other menus
 				if (row < kNumCats) {

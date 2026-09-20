@@ -78,12 +78,23 @@ enum {
 // (transitions default to ambient bars, everything else to stretch).
 extern int g_screen2DBarMode;
 
-// RAII helper: force a display mode for the scope of a static screen (menus,
-// documentation, fixed images, ...), restoring the previous mode on exit.
+// Within the ambient mode, static screens (intro logos, menus, documentation)
+// use plain SOLID bars taking the dominant colour of the image edge, while
+// motion video uses the blurred ambient bars. This flag selects which.
+extern bool g_screen2DBarAmbientSolid;
+
+// RAII helper: force a display mode for the scope of a screen, restoring the
+// previous mode on exit. ambientSolid selects solid-colour ambient bars (for
+// static screens) versus the blurred ones (for motion video).
 struct Screen2DBarModeGuard {
-	int _old;
-	explicit Screen2DBarModeGuard(int mode) : _old(g_screen2DBarMode) { g_screen2DBarMode = mode; }
-	~Screen2DBarModeGuard() { g_screen2DBarMode = _old; }
+	int _oldMode;
+	bool _oldSolid;
+	explicit Screen2DBarModeGuard(int mode, bool ambientSolid = false)
+		: _oldMode(g_screen2DBarMode), _oldSolid(g_screen2DBarAmbientSolid) {
+		g_screen2DBarMode = mode;
+		g_screen2DBarAmbientSolid = ambientSolid;
+	}
+	~Screen2DBarModeGuard() { g_screen2DBarMode = _oldMode; g_screen2DBarAmbientSolid = _oldSolid; }
 };
 
 // Blit a 640-space 2D surface centered on the (possibly wider) physical screen.

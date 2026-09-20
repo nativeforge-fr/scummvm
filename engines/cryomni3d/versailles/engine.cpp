@@ -1862,9 +1862,9 @@ void CryOmni3DEngine_Versailles::handleFixedImg(const FixedImgCallback &callback
 		return;
 	}
 
-	// Fixed images / close-ups (paintings, objects). Display mode configurable
-	// per category (default: stretch to fill the screen).
-	Screen2DBarModeGuard _barMode(barModeForCategory("bars_fixedimage", kScreen2DBarModeStretch));
+	// Fixed images / close-ups (paintings, objects). Static, so ambient uses
+	// solid colour bars. Default mode = ambient.
+	Screen2DBarModeGuard _barMode(barModeForCategory("bars_fixedimage", kScreen2DBarModeAmbient), true);
 
 	ZonFixedImage::CallbackFunctor *functor =
 	    new Common::Functor1Mem<ZonFixedImage *, void, CryOmni3DEngine_Versailles>(this, callback);
@@ -1916,9 +1916,12 @@ void CryOmni3DEngine_Versailles::playInGameVideo(const Common::Path &filename,
 void CryOmni3DEngine_Versailles::playSubtitledVideo(const Common::String &filename) {
 	Common::HashMap<Common::String, Common::Array<SubtitleEntry> >::const_iterator it;
 
-	// Cinematics (intro logos + story videos). Configurable per category
-	// (default: stretch to fill the screen).
-	Screen2DBarModeGuard _barMode(barModeForCategory("bars_cinematic", kScreen2DBarModeStretch));
+	// Cinematics. Default = ambient bars; the intro logos (static) use solid
+	// colour bars, the motion videos use the blurred ambient bars.
+	Common::String lf = filename;
+	lf.toLowercase();
+	bool isLogo = lf.contains("logo");
+	Screen2DBarModeGuard _barMode(barModeForCategory("bars_cinematic", kScreen2DBarModeAmbient), isLogo);
 
 	if (!showSubtitles() ||
 	        (it = _subtitles.find(filename)) == _subtitles.end() ||
