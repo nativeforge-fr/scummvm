@@ -245,6 +245,7 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 						switch (getLanguage()) {
 						case Common::FR_FRA: lbl = "Options graphiques"; break;
 						case Common::DE_DEU: lbl = "Grafikoptionen"; break;
+						case Common::ZH_TWN: lbl = "\xc5\xe3\xa5\xdc\xbf\xef\xb6\xb5"; break; // 顯示選項
 						default:             lbl = "Graphics options"; break;
 						}
 						entryText = Common::String("           ") + lbl;
@@ -589,12 +590,18 @@ static const char *gfxCatLabel(Common::Language lang, int cat) {
 	static const char *const fr[] = {"Cinematiques", "Transitions", "Images fixes", "Menus", "Documentation", "Dialogues"};
 	static const char *const en[] = {"Cinematics", "Transitions", "Fixed images", "Menus", "Documentation", "Dialogues"};
 	static const char *const de[] = {"Filme", "Uebergaenge", "Standbilder", "Menues", "Dokumentation", "Dialoge"};
+	// Big5/CP950: 影片 / 轉場 / 圖片 / 選單 / 文獻 / 對話
+	static const char *const zh[] = {
+		"\xbc\x76\xa4\xf9", "\xc2\xe0\xb3\xf5", "\xb9\xcf\xa4\xf9",
+		"\xbf\xef\xb3\xe6", "\xa4\xe5\xc4\x6d", "\xb9\xef\xb8\xdc"
+	};
 	if (cat < 0 || cat > 5) {
 		cat = 0;
 	}
 	switch (lang) {
 	case Common::FR_FRA: return fr[cat];
 	case Common::DE_DEU: return de[cat];
+	case Common::ZH_TWN: return zh[cat];
 	default:             return en[cat];
 	}
 }
@@ -603,12 +610,15 @@ static const char *gfxModeLabel(Common::Language lang, int mode) {
 	static const char *const fr[] = {"Ambiance", "Noir", "Etire"};
 	static const char *const en[] = {"Ambient", "Black", "Stretch"};
 	static const char *const de[] = {"Ambiente", "Schwarz", "Gestreckt"};
+	// Big5/CP950: 氛圍 / 黑色 / 拉伸
+	static const char *const zh[] = {"\xaa\x5e\xb3\xf2", "\xb6\xc2\xa6\xe2", "\xa9\xd4\xa6\xf9"};
 	if (mode < 0 || mode > 2) {
 		mode = 0;
 	}
 	switch (lang) {
 	case Common::FR_FRA: return fr[mode];
 	case Common::DE_DEU: return de[mode];
+	case Common::ZH_TWN: return zh[mode];
 	default:             return en[mode];
 	}
 }
@@ -617,6 +627,7 @@ static const char *gfxBackLabel(Common::Language lang) {
 	switch (lang) {
 	case Common::FR_FRA: return "Retour";
 	case Common::DE_DEU: return "Zurueck";
+	case Common::ZH_TWN: return "\xaa\xf0\xa6\x5e"; // 返回
 	default:             return "Back";
 	}
 }
