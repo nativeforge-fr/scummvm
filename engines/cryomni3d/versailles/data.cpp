@@ -101,7 +101,9 @@ void CryOmni3DEngine_Versailles::loadStaticData() {
 	_epigraphContent = data->readString16();
 	_epigraphPassword = data->readString16();
 
-	if (getLanguage() == Common::JA_JPN) {
+	// NB: use _currentLanguage (the language the .dat was actually loaded for, see
+	// getStaticData) so the parsing format (message count, subtitles) matches the stream.
+	if (_currentLanguage == Common::JA_JPN) {
 		_bombAlphabet = data->readString16().decode(Common::kWindows932);
 		_bombPassword = data->readString16().decode(Common::kWindows932);
 	} else {
@@ -111,9 +113,9 @@ void CryOmni3DEngine_Versailles::loadStaticData() {
 
 	// messages, paintings titles
 	data->readString16Array16(_messages);
-	if ((getLanguage() == Common::JA_JPN) ||
-	        (getLanguage() == Common::KO_KOR) ||
-	        (getLanguage() == Common::ZH_TWN)) {
+	if ((_currentLanguage == Common::JA_JPN) ||
+	        (_currentLanguage == Common::KO_KOR) ||
+	        (_currentLanguage == Common::ZH_TWN)) {
 		assert(_messages.size() == 151);
 	} else {
 		assert(_messages.size() == 146);
@@ -124,9 +126,9 @@ void CryOmni3DEngine_Versailles::loadStaticData() {
 
 	_subtitles.clear();
 	// Only CJK have subtitles, don't change dat format for other languages
-	if ((getLanguage() == Common::JA_JPN) ||
-	        (getLanguage() == Common::KO_KOR) ||
-	        (getLanguage() == Common::ZH_TWN)) {
+	if ((_currentLanguage == Common::JA_JPN) ||
+	        (_currentLanguage == Common::KO_KOR) ||
+	        (_currentLanguage == Common::ZH_TWN)) {
 		readSubtitles(_subtitles, data);
 	}
 
