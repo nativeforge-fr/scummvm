@@ -725,7 +725,7 @@ void CryOmni3DEngine_Versailles::setupSprites() {
 
 	if (!file.open(getFilePath(kFileTypeSprite, "all_spr.bin"))) {
 		// Try with TW specific file
-		if (getLanguage() == Common::ZH_TWN &&
+		if (_currentLanguage == Common::ZH_TWN &&
 			!file.open(getFilePath(kFileTypeSprite, "allsprtw.bin"))) {
 			error("Failed to open all_spr.bin and allsprtw.bin file");
 		} else {
@@ -1003,7 +1003,7 @@ void CryOmni3DEngine_Versailles::playTransitionEndLevel(int level) {
 	// In original game the HNM player just doesn't render the cursor
 	bool cursorWasVisible = showMouse(false);
 
-	if (level == -2 && getLanguage() == Common::DE_DEU) {
+	if (level == -2 && _currentLanguage == Common::DE_DEU) {
 		Common::Path ravensbgPath(getFilePath(kFileTypeTransSceneI, "RAVENSBG"));
 		if (Common::File::exists(ravensbgPath)) {
 			// Display one more copyright
@@ -1034,7 +1034,7 @@ void CryOmni3DEngine_Versailles::playTransitionEndLevel(int level) {
 		return;
 	}
 
-	if (level == -2 && getLanguage() == Common::JA_JPN) {
+	if (level == -2 && _currentLanguage == Common::JA_JPN) {
 		Common::Path jvcPath(getFilePath(kFileTypeTransScene, "jvclogo.hnm"));
 		if (Common::File::exists(jvcPath)) {
 			// Display one more copyright
@@ -2142,8 +2142,9 @@ const char *CryOmni3DEngine_Versailles::languageCode(Common::Language lang) {
 	case Common::ZH_TWN:
 		return "zh";
 	case Common::FR_FRA:
+		return "fr"; // installer puts a NON-base French at lang/fr (base can be any language now)
 	default:
-		return nullptr; // French is the base data, no overlay
+		return nullptr; // unknown language
 	}
 }
 
@@ -2200,11 +2201,11 @@ bool CryOmni3DEngine_Versailles::isLanguageAvailable(Common::Language lang) cons
 	// voice track (audio_datasv, e.g. English installed as the Chinese edition's voice) must
 	// NOT appear in the TEXT menu -> do not test audio_datasv here.
 	if (lang == _baseLanguage) {
-		return true;
+		return true;   // base language lives at the root
 	}
 	const char *code = languageCode(lang);
 	if (!code) {
-		return true;
+		return false;  // unknown language -> not installed
 	}
 	Common::FSNode root = childCaseless(childCaseless(_gamePath, "lang"), code);
 	return childCaseless(root, "text_datasv").exists() ||
@@ -2215,11 +2216,11 @@ bool CryOmni3DEngine_Versailles::isAudioLanguageAvailable(Common::Language lang)
 	// AUDIO availability: the base ships one voice track (_baseAudioLanguage); other VOICE
 	// languages need an audio overlay (lang/<code>/audio_datasv). Used for the voice-language menu.
 	if (lang == _baseAudioLanguage) {
-		return true;
+		return true;   // base voice track lives at the root
 	}
 	const char *code = languageCode(lang);
 	if (!code) {
-		return true;
+		return false;  // unknown language -> not installed
 	}
 	Common::FSNode root = childCaseless(childCaseless(_gamePath, "lang"), code);
 	return childCaseless(root, "audio_datasv").exists();
@@ -2458,7 +2459,7 @@ int CryOmni3DEngine_Versailles::barModeForCategory(const char *confKey, int defM
 }
 
 const char *CryOmni3DEngine_Versailles::uiLabelFilter() const {
-	switch (getLanguage()) {
+	switch (_currentLanguage) {
 	case Common::FR_FRA: return "Filtrage image";
 	case Common::DE_DEU: return "Bildfilter";
 	case Common::IT_ITA: return "Filtro immagine";
@@ -2472,7 +2473,7 @@ const char *CryOmni3DEngine_Versailles::uiLabelFilter() const {
 }
 
 const char *CryOmni3DEngine_Versailles::uiLabelVoiceLang() const {
-	switch (getLanguage()) {
+	switch (_currentLanguage) {
 	case Common::FR_FRA: return "Langue des voix";
 	case Common::DE_DEU: return "Sprache Stimmen";
 	case Common::IT_ITA: return "Lingua voci";
@@ -2486,7 +2487,7 @@ const char *CryOmni3DEngine_Versailles::uiLabelVoiceLang() const {
 }
 
 const char *CryOmni3DEngine_Versailles::uiLabelTextLang() const {
-	switch (getLanguage()) {
+	switch (_currentLanguage) {
 	case Common::FR_FRA: return "Langue des textes";
 	case Common::DE_DEU: return "Sprache Texte";
 	case Common::IT_ITA: return "Lingua testi";
@@ -2500,7 +2501,7 @@ const char *CryOmni3DEngine_Versailles::uiLabelTextLang() const {
 }
 
 const char *CryOmni3DEngine_Versailles::uiLabelOnOff(bool on) const {
-	switch (getLanguage()) {
+	switch (_currentLanguage) {
 	case Common::FR_FRA: return on ? "OUI" : "NON";
 	case Common::DE_DEU: return on ? "JA" : "NEIN";
 	case Common::IT_ITA: return on ? "SI" : "NO";
@@ -2518,7 +2519,7 @@ const char *CryOmni3DEngine_Versailles::languageNameLocalized(Common::Language n
 	// language's font. Latin names use Mac Roman bytes for accents (the game data
 	// is Mac Roman, not Windows-1252); CJK names use each font's codepage
 	// (Shift-JIS / CP949 / Big5).
-	switch (getLanguage()) {
+	switch (_currentLanguage) {
 	case Common::JA_JPN: // Shift-JIS
 		switch (named) {
 		case Common::EN_ANY: return "\x89\x70\x8c\xea";                             // 英語
