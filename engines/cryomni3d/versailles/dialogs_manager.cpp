@@ -96,15 +96,19 @@ void Versailles_DialogsManager::executeShow(const Common::String &show) {
 
 void Versailles_DialogsManager::playDialog(const Common::String &video, const Common::String &sound,
 		const Common::String &text, const SubtitlesSettings &settings) {
-	Common::String soundFName(sound);
-	if (_padAudioFileName) {
-		while (soundFName.size() < 8) {
-			soundFName += '_';
-		}
+	// Voice filename convention differs by source edition: the English release uses the bare
+	// dialog name, while the French/CJK releases pad it to 8 chars with '_'. An English voice
+	// track sourced from a CJK edition is therefore padded like French, not bare. Try the
+	// naming hinted by _padAudioFileName first, then fall back to the other convention so the
+	// file is found whatever edition provided the track.
+	Common::String paddedName(sound);
+	while (paddedName.size() < 8) {
+		paddedName += '_';
 	}
+	Common::String soundFName = _padAudioFileName ? paddedName : sound;
+	Common::String altFName   = _padAudioFileName ? sound : paddedName;
 
 	Common::Path videoPath(_engine->getFilePath(kFileTypeDialAnim, video));
-	Common::Path soundPath(_engine->getFilePath(kFileTypeDialSound, soundFName));
 
 	Video::HNMDecoder *videoDecoder = new Video::HNMDecoder(g_system->getScreenFormat(), true);
 
@@ -114,12 +118,16 @@ void Versailles_DialogsManager::playDialog(const Common::String &video, const Co
 		return;
 	}
 
+	Common::Path soundPath(_engine->getFilePath(kFileTypeDialSound, soundFName));
 	Common::File *audioFile = new Common::File();
 	if (!audioFile->open(soundPath)) {
-		warning("Failed to open sound file %s/%s", sound.c_str(), soundPath.toString(Common::Path::kNativeSeparator).c_str());
-		delete videoDecoder;
-		delete audioFile;
-		return;
+		Common::Path altPath(_engine->getFilePath(kFileTypeDialSound, altFName));
+		if (altFName == soundFName || !audioFile->open(altPath)) {
+			warning("Failed to open sound file %s/%s", sound.c_str(), soundPath.toString(Common::Path::kNativeSeparator).c_str());
+			delete videoDecoder;
+			delete audioFile;
+			return;
+		}
 	}
 
 	Audio::SeekableAudioStream *audioDecoder = Audio::makeWAVStream(audioFile, DisposeAfterUse::YES);

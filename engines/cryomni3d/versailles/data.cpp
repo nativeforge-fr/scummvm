@@ -121,6 +121,7 @@ void CryOmni3DEngine_Versailles::loadStaticData() {
 	data->readString16Array16(_paintingsTitles);
 	assert(_paintingsTitles.size() == 48);
 
+
 	_subtitles.clear();
 	// Only CJK have subtitles, don't change dat format for other languages
 	if ((getLanguage() == Common::JA_JPN) ||

@@ -28,11 +28,10 @@
 namespace CryOmni3D {
 namespace Versailles {
 
-// Widescreen HUD: the toolbar spans the full physical width. The native
-// 640-wide layout is redistributed: options anchored to the left edge,
-// documentation to the right edge, inventory + arrows + view centered.
-static const int kHudWidth = 864;
-static const int kHudOffX = (kHudWidth - 640) / 2; // 112
+// HUD spans the full width (864 in 16:9, 640 in 4:3). With offset 0 (4:3) the
+// redistribution below is skipped, keeping the native 640 layout.
+static int kHudWidth() { return g_system->getWidth(); }
+static int kHudOffX() { return (g_system->getWidth() - 640) / 2; }
 
 void Toolbar::init(const Sprites *sprites, FontManager *fontManager,
 				   const Common::Array<Common::String> *messages, Inventory *inventory,
@@ -43,8 +42,8 @@ void Toolbar::init(const Sprites *sprites, FontManager *fontManager,
 	_inventory = inventory;
 	_engine = engine;
 
-	_bgSurface.create(kHudWidth, 60, Graphics::PixelFormat::createFormatCLUT8());
-	_destSurface.create(kHudWidth, 60, Graphics::PixelFormat::createFormatCLUT8());
+	_bgSurface.create(kHudWidth(), 60, Graphics::PixelFormat::createFormatCLUT8());
+	_destSurface.create(kHudWidth(), 60, Graphics::PixelFormat::createFormatCLUT8());
 
 	// Inventory
 	addZone(51, 56, Common::Point(211, 8), &Toolbar::callbackInventory<0>);
@@ -75,14 +74,14 @@ void Toolbar::init(const Sprites *sprites, FontManager *fontManager,
 	// Widescreen HUD: redistribute the zones across the full width.
 	// Zone 8 = documentation (right edge), zone 9 = options (left edge),
 	// all others (inventory 0-7, prev 10, next 11, view 12) = centered.
-	if (kHudOffX > 0) {
+	if (kHudOffX() > 0) {
 		for (uint i = 0; i < _zones.size(); i++) {
 			if (i == 9)
 				continue; // options: stays at the left edge (x = 0)
 			else if (i == 8)
-				_zones[i].rect.translate(2 * kHudOffX, 0); // documentation: right edge
+				_zones[i].rect.translate(2 * kHudOffX(), 0); // documentation: right edge
 			else
-				_zones[i].rect.translate(kHudOffX, 0); // centered
+				_zones[i].rect.translate(kHudOffX(), 0); // centered
 		}
 	}
 }
@@ -350,7 +349,7 @@ void Toolbar::drawToolbar(const Graphics::Surface *original) {
 
 	if (_position != 0) {
 		// Not entirely drawn, we must copy a part of the original image
-		Common::Rect rct(0, 420, MIN<int16>(kHudWidth, (int16)original->w), 420 + _position);
+		Common::Rect rct(0, 420, MIN<int16>((int16)kHudWidth(), (int16)original->w), 420 + _position);
 		_destSurface.copyRectToSurface(*original, 0, 0, rct);
 	}
 
@@ -360,7 +359,7 @@ void Toolbar::drawToolbar(const Graphics::Surface *original) {
 	}
 
 	// Not entirely hidden, we must display the transparent background prepared for us
-	Common::Rect rct(0, _position, kHudWidth, 60);
+	Common::Rect rct(0, _position, kHudWidth(), 60);
 	_destSurface.copyRectToSurface(_bgSurface, 0, _position, rct);
 
 	// Now draw the various zones on the surface
@@ -404,7 +403,7 @@ void Toolbar::drawToolbar(const Graphics::Surface *original) {
 		_fontManager->setCurrentFont(5);
 		_fontManager->setTransparentBackground(true);
 		const Common::String &objName = (*_messages)[obj->idOBJ()];
-		uint x = 195 + kHudOffX - _fontManager->getStrWidth(objName);
+		uint x = 195 + kHudOffX() - _fontManager->getStrWidth(objName);
 		uint startX = _zones[zoneId].rect.left + kTextOffset;
 		_fontManager->displayStr(x, 38 + _position, objName);
 		_destSurface.hLine(x, 54 + _position, startX - 1, 243); // minus 1 because hLine draws inclusive

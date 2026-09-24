@@ -106,9 +106,15 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 	menuEntries.push_back(28);
 	menuEntries.push_back(29);
 	menuEntries.push_back(48);
-	menuEntries.push_back(1001); // Widescreen standalone: voice (audio) language
-	menuEntries.push_back(1002); // Widescreen standalone: text (subtitle) language
-	menuEntries.push_back(1003); // Widescreen standalone: graphics options sub-menu
+	// Standalone: language entries only when more than one language is installed.
+	if (countAvailableLanguages() >= 2) {
+		menuEntries.push_back(1001); // voice (audio) language
+		menuEntries.push_back(1002); // text (subtitle) language
+	}
+#ifdef VERSAILLES_QOL
+	// QoL build only: graphics options sub-menu (16:9/4:3 + filtering).
+	menuEntries.push_back(1003);
+#endif
 	menuEntries.push_back(30);
 	menuEntries.push_back(32);
 #if 0
@@ -245,7 +251,12 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 						switch (getLanguage()) {
 						case Common::FR_FRA: lbl = "Options graphiques"; break;
 						case Common::DE_DEU: lbl = "Grafikoptionen"; break;
-						case Common::ZH_TWN: lbl = "\xc5\xe3\xa5\xdc\xbf\xef\xb6\xb5"; break; // 顯示選項
+						case Common::IT_ITA: lbl = "Opzioni grafiche"; break;
+						case Common::ES_ESP: lbl = "Opciones gr" "\x87" "ficas"; break;            // Opciones gráficas
+						case Common::PT_BRA: lbl = "Op" "\x8d" "\x9b" "es gr" "\x87" "ficas"; break; // Opções gráficas
+						case Common::ZH_TWN: lbl = "\xc5\xe3\xa5\xdc\xbf\xef\xb6\xb5"; break;       // 顯示選項 (Big5)
+						case Common::JA_JPN: lbl = "\x95\x5c\x8e\xa6\x90\xdd\x92\xe8"; break;       // 表示設定 (Shift-JIS)
+						case Common::KO_KOR: lbl = "\xc8\xad\xb8\xe9\x20\xbc\xb3\xc1\xa4"; break;   // 화면 설정 (CP949)
 						default:             lbl = "Graphics options"; break;
 						}
 						entryText = Common::String("           ") + lbl;
@@ -377,7 +388,8 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 					} else if (getLanguage() == Common::ES_ESP ||
 					           getLanguage() == Common::IT_ITA) {
 						rct = Common::Rect(250, 420, 530, 465);
-					} else if (getLanguage() == Common::JA_JPN) {
+					} else if (getLanguage() == Common::JA_JPN || getLanguage() == Common::KO_KOR || getLanguage() == Common::ZH_TWN) {
+						// CJK (Noto) : le chinois/coreen tombaient sinon sur le rect latin, mal dimensionne.
 						rct = Common::Rect(245, 420, 505, 465);
 					} else {
 						rct = Common::Rect(235, 420, 505, 465);
@@ -465,13 +477,16 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				selectedMsg = 0;
 				waitMouseRelease();
 			} else if (selectedMsg == 1003) {
-				// Widescreen standalone: open the graphics options sub-menu
-				// (per-category display mode + bilinear filtering). It reloads the
-				// palette/fonts, so re-init this screen on the next draw too.
+#ifdef VERSAILLES_QOL
+				// QoL build: open the graphics options sub-menu (per-category display
+				// mode + bilinear filtering). It reloads the palette/fonts, so re-init
+				// this screen on the next draw too. (Entry 1003 is not listed in the
+				// original build, so this branch is unreachable there.)
 				waitMouseRelease();
 				displayDisplaySettings();
 				resetScreen = true;
 				drawState = 1;
+#endif
 				selectedMsg = 0;
 			} else if (selectedMsg == 1001) {
 				// Cycle the VOICE (audio) language (no Chinese dub).
@@ -590,10 +605,32 @@ static const char *gfxCatLabel(Common::Language lang, int cat) {
 	static const char *const fr[] = {"Cinematiques", "Transitions", "Images fixes", "Menus", "Documentation", "Dialogues"};
 	static const char *const en[] = {"Cinematics", "Transitions", "Fixed images", "Menus", "Documentation", "Dialogues"};
 	static const char *const de[] = {"Filme", "Uebergaenge", "Standbilder", "Menues", "Dokumentation", "Dialoge"};
+	static const char *const it[] = {"Filmati", "Transizioni", "Immagini fisse", "Menu", "Documentazione", "Dialoghi"};
+	// Spanish (Mac Roman accents)
+	static const char *const es[] = {
+		"Cinem" "\x87" "ticas", "Transiciones", "Im" "\x87" "genes fijas",
+		"Men" "\x9c" "s", "Documentaci" "\x97" "n", "Di" "\x87" "logos"
+	};
+	// Portuguese (Mac Roman accents)
+	static const char *const pt[] = {
+		"Filmes", "Transi" "\x8d" "\x9b" "es", "Imagens fixas",
+		"Menus", "Documenta" "\x8d" "\x8b" "o", "Di" "\x87" "logos"
+	};
 	// Big5/CP950: 影片 / 轉場 / 圖片 / 選單 / 文獻 / 對話
 	static const char *const zh[] = {
 		"\xbc\x76\xa4\xf9", "\xc2\xe0\xb3\xf5", "\xb9\xcf\xa4\xf9",
 		"\xbf\xef\xb3\xe6", "\xa4\xe5\xc4\x6d", "\xb9\xef\xb8\xdc"
+	};
+	// Shift-JIS: ムービー / 切り替え / 静止画 / メニュー / 資料 / 会話
+	static const char *const ja[] = {
+		"\x83\x80\x81\x5b\x83\x72\x81\x5b", "\x90\xd8\x82\xe8\x91\xd6\x82\xa6",
+		"\x90\xc3\x8e\x7e\x89\xe6", "\x83\x81\x83\x6a\x83\x85\x81\x5b",
+		"\x8e\x91\x97\xbf", "\x89\xef\x98\x62"
+	};
+	// CP949: 영상 / 전환 / 이미지 / 메뉴 / 문서 / 대화
+	static const char *const ko[] = {
+		"\xbf\xb5\xbb\xf3", "\xc0\xfc\xc8\xaf", "\xc0\xcc\xb9\xcc\xc1\xf6",
+		"\xb8\xde\xb4\xba", "\xb9\xae\xbc\xad", "\xb4\xeb\xc8\xad"
 	};
 	if (cat < 0 || cat > 5) {
 		cat = 0;
@@ -601,7 +638,12 @@ static const char *gfxCatLabel(Common::Language lang, int cat) {
 	switch (lang) {
 	case Common::FR_FRA: return fr[cat];
 	case Common::DE_DEU: return de[cat];
+	case Common::IT_ITA: return it[cat];
+	case Common::ES_ESP: return es[cat];
+	case Common::PT_BRA: return pt[cat];
 	case Common::ZH_TWN: return zh[cat];
+	case Common::JA_JPN: return ja[cat];
+	case Common::KO_KOR: return ko[cat];
 	default:             return en[cat];
 	}
 }
@@ -610,15 +652,31 @@ static const char *gfxModeLabel(Common::Language lang, int mode) {
 	static const char *const fr[] = {"Ambiance", "Noir", "Etire"};
 	static const char *const en[] = {"Ambient", "Black", "Stretch"};
 	static const char *const de[] = {"Ambiente", "Schwarz", "Gestreckt"};
+	static const char *const it[] = {"Ambiente", "Nero", "Allungato"};
+	static const char *const es[] = {"Ambiente", "Negro", "Estirado"};
+	static const char *const pt[] = {"Ambiente", "Preto", "Esticado"};
 	// Big5/CP950: 氛圍 / 黑色 / 拉伸
 	static const char *const zh[] = {"\xaa\x5e\xb3\xf2", "\xb6\xc2\xa6\xe2", "\xa9\xd4\xa6\xf9"};
+	// Shift-JIS: 雰囲気 / 黒 / ストレッチ
+	static const char *const ja[] = {
+		"\x95\xb5\x88\xcd\x8b\x43", "\x8d\x95", "\x83\x58\x83\x67\x83\x8c\x83\x62\x83\x60"
+	};
+	// CP949: 분위기 / 검정 / 늘이기
+	static const char *const ko[] = {
+		"\xba\xd0\xc0\xa7\xb1\xe2", "\xb0\xcb\xc1\xa4", "\xb4\xc3\xc0\xcc\xb1\xe2"
+	};
 	if (mode < 0 || mode > 2) {
 		mode = 0;
 	}
 	switch (lang) {
 	case Common::FR_FRA: return fr[mode];
 	case Common::DE_DEU: return de[mode];
+	case Common::IT_ITA: return it[mode];
+	case Common::ES_ESP: return es[mode];
+	case Common::PT_BRA: return pt[mode];
 	case Common::ZH_TWN: return zh[mode];
+	case Common::JA_JPN: return ja[mode];
+	case Common::KO_KOR: return ko[mode];
 	default:             return en[mode];
 	}
 }
@@ -627,11 +685,47 @@ static const char *gfxBackLabel(Common::Language lang) {
 	switch (lang) {
 	case Common::FR_FRA: return "Retour";
 	case Common::DE_DEU: return "Zurueck";
-	case Common::ZH_TWN: return "\xaa\xf0\xa6\x5e"; // 返回
+	case Common::IT_ITA: return "Indietro";
+	case Common::ES_ESP: return "Atr" "\x87" "s";     // Atrás
+	case Common::PT_BRA: return "Voltar";
+	case Common::ZH_TWN: return "\xaa\xf0\xa6\x5e";   // 返回 (Big5)
+	case Common::JA_JPN: return "\x96\xdf\x82\xe9";   // 戻る (Shift-JIS)
+	case Common::KO_KOR: return "\xb5\xda\xb7\xce";   // 뒤로 (CP949)
 	default:             return "Back";
 	}
 }
 
+static const char *gfxFormatLabel(Common::Language lang) {
+	switch (lang) {
+	case Common::FR_FRA: return "Format d'" "\x8e" "cran";              // Format d'écran
+	case Common::DE_DEU: return "Bildformat";
+	case Common::IT_ITA: return "Formato schermo";
+	case Common::ES_ESP: return "Formato de pantalla";
+	case Common::PT_BRA: return "Formato de tela";
+	case Common::ZH_TWN: return "\xbf\xc3\xb9\xf5\xa4\xf1\xa8\xd2";     // 螢幕比例 (Big5)
+	case Common::JA_JPN: return "\x89\xe6\x96\xca\x94\xe4\x97\xa6";     // 画面比率 (Shift-JIS)
+	case Common::KO_KOR: return "\xc8\xad\xb8\xe9\x20\xba\xf1\xc0\xb2"; // 화면 비율 (CP949)
+	default:             return "Screen format";
+	}
+}
+
+// Shown next to the screen-format value when it differs from the running one,
+// to signal the change takes effect on the next launch.
+static const char *gfxRestartHint(Common::Language lang) {
+	switch (lang) {
+	case Common::FR_FRA: return "(red" "\x8e" "marrage)";              // (redémarrage)
+	case Common::DE_DEU: return "(Neustart)";
+	case Common::IT_ITA: return "(riavvio)";
+	case Common::ES_ESP: return "(reinicio)";
+	case Common::PT_BRA: return "(reinicio)";
+	case Common::ZH_TWN: return "(\xad\xab\xb7\x73\xb1\xd2\xb0\xca)";   // (重新啟動) (Big5)
+	case Common::JA_JPN: return "(\x8d\xc4\x8b\x4e\x93\xae)";           // (再起動) (Shift-JIS)
+	case Common::KO_KOR: return "(\xc0\xe7\xbd\xc3\xc0\xdb)";           // (재시작) (CP949)
+	default:             return "(restart)";
+	}
+}
+
+#ifdef VERSAILLES_QOL
 void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 	static const char *const catKeys[] = {
 		"bars_cinematic", "bars_transition", "bars_fixedimage",
@@ -642,7 +736,20 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 		kScreen2DBarModeAmbient, kScreen2DBarModeAmbient, kScreen2DBarModeAmbient
 	};
 	const int kNumCats = 6;
-	const int kNumRows = kNumCats + 2; // categories + filter toggle + back
+	// Rows: [0] screen format, [1..6] bar-mode categories, [7] filter, [8] back.
+	const int kFmtRow = 0;
+	const int kCatBase = 1;
+	const int kFiltRow = kCatBase + kNumCats;  // 7
+	const int kBackRow = kFiltRow + 1;         // 8
+	const int kNumRows = kBackRow + 1;         // 9
+	// Colour for greyed-out (non-interactive) rows.
+	const uint kGreyColor = 246;
+
+	// Screen format (persisted; applied at next launch). When 4:3, there are no
+	// side bars, so the per-category bar modes are greyed out / non-interactive.
+	bool widescreen = ConfMan.hasKey("versailles_widescreen", Common::ConfigManager::kApplicationDomain)
+	                  ? ConfMan.getBool("versailles_widescreen", Common::ConfigManager::kApplicationDomain)
+	                  : true;
 
 	// This screen is itself menu content: honor the menu display mode.
 	Screen2DBarModeGuard _barsGuard(barModeForCategory("bars_menu", kScreen2DBarModeAmbient), true);
@@ -686,11 +793,20 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 			uint top = 195; // start below the menu title, like the main options screen
 			for (int row = 0; row < kNumRows; row++) {
 				Common::String txt("           "); // 11-space indent like other menus
-				if (row < kNumCats) {
-					int mode = barModeForCategory(catKeys[row], catDefaults[row]);
-					txt += Common::String(gfxCatLabel(getLanguage(), row)) + " : " +
+				bool greyed = false;
+				if (row == kFmtRow) {
+					txt += Common::String(gfxFormatLabel(getLanguage())) + " : " +
+					       (widescreen ? "16:9" : "4:3");
+					if (widescreen != _widescreen) {
+						txt += Common::String("  ") + gfxRestartHint(getLanguage());
+					}
+				} else if (row >= kCatBase && row < kCatBase + kNumCats) {
+					int cat = row - kCatBase;
+					int mode = barModeForCategory(catKeys[cat], catDefaults[cat]);
+					txt += Common::String(gfxCatLabel(getLanguage(), cat)) + " : " +
 					       gfxModeLabel(getLanguage(), mode);
-				} else if (row == kNumCats) {
+					greyed = !widescreen; // bar modes only apply in 16:9
+				} else if (row == kFiltRow) {
 					bool filt = g_system->getFeatureState(OSystem::kFeatureFilteringMode);
 					txt += Common::String(uiLabelFilter()) + " : " + uiLabelOnOff(filt);
 				} else {
@@ -699,8 +815,12 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 				uint bottom = top;
 				top += 24;
 				uint width = _fontManager.getStrWidth(txt);
-				boxes.setupBox(row, 144, top - 39, width + 144, bottom);
-				_fontManager.setForeColor((uint(row) == hoveredBox) ? 240 : 243);
+				// Greyed rows are not registered as clickable boxes.
+				if (!greyed) {
+					boxes.setupBox(row, 144, top - 39, width + 144, bottom);
+				}
+				uint color = greyed ? kGreyColor : ((uint(row) == hoveredBox) ? 240 : 243);
+				_fontManager.setForeColor(color);
 				_fontManager.displayStr(144, top - 39, txt);
 			}
 			copyRectToScreen2D(surface.getPixels(), surface.pitch, 0, 0, surface.w, surface.h);
@@ -724,12 +844,19 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 				drawState = 1;
 			}
 			if (box != uint(-1) && getDragStatus() == 2) {
-				if (box < uint(kNumCats)) {
-					int mode = barModeForCategory(catKeys[box], catDefaults[box]);
-					mode = (mode + 1) % 3;
-					ConfMan.setInt(catKeys[box], mode, Common::ConfigManager::kApplicationDomain);
+				if (box == uint(kFmtRow)) {
+					// Toggle 16:9 <-> 4:3; applied at next launch.
+					widescreen = !widescreen;
+					ConfMan.setBool("versailles_widescreen", widescreen,
+					                Common::ConfigManager::kApplicationDomain);
 					ConfMan.flushToDisk();
-				} else if (box == uint(kNumCats)) {
+				} else if (box >= uint(kCatBase) && box < uint(kCatBase + kNumCats)) {
+					int cat = box - kCatBase;
+					int mode = barModeForCategory(catKeys[cat], catDefaults[cat]);
+					mode = (mode + 1) % 3;
+					ConfMan.setInt(catKeys[cat], mode, Common::ConfigManager::kApplicationDomain);
+					ConfMan.flushToDisk();
+				} else if (box == uint(kFiltRow)) {
 					bool nv = !g_system->getFeatureState(OSystem::kFeatureFilteringMode);
 					g_system->beginGFXTransaction();
 					g_system->setFeatureState(OSystem::kFeatureFilteringMode, nv);
@@ -747,11 +874,10 @@ void CryOmni3DEngine_Versailles::displayDisplaySettings() {
 
 	delete imageDecoder;
 }
+#endif // VERSAILLES_QOL
 
 uint CryOmni3DEngine_Versailles::displayYesNoBox(Graphics::ManagedSurface &surface,
 		const Common::Rect &position, uint msg_id) {
-	uint confirmWidth = _fontManager.getStrWidth(_messages[53]);
-	uint cancelWidth = _fontManager.getStrWidth(_messages[54]);
 	uint oldFont = _fontManager.getCurrentFont();
 
 	_fontManager.setSurface(&surface);
@@ -763,12 +889,20 @@ uint CryOmni3DEngine_Versailles::displayYesNoBox(Graphics::ManagedSurface &surfa
 	                                     position.bottom - 5));
 	_fontManager.setCurrentFont(5);
 	_fontManager.displayBlockText(_messages[msg_id]);
+
+	// Buttons use font 3: measure their width AND height with THAT font. The CJK (Noto) glyphs
+	// are wider and taller than the Latin pixel font, so a hardcoded 15px button height clipped
+	// them at the box bottom, and widths measured with the previous font shifted the Cancel
+	// button horizontally -> the misplacement seen in Chinese/Korean.
 	_fontManager.setCurrentFont(3);
+	uint confirmWidth = _fontManager.getStrWidth(_messages[53]);
+	uint cancelWidth = _fontManager.getStrWidth(_messages[54]);
+	uint buttonTop = position.bottom - _fontManager.getFontMaxHeight();
 
 	MouseBoxes boxes(2);
-	boxes.setupBox(1, position.left + 5, position.bottom - 15, position.left + confirmWidth,
+	boxes.setupBox(1, position.left + 5, buttonTop, position.left + confirmWidth,
 	               position.bottom, &_messages[53]);
-	boxes.setupBox(0, position.right - cancelWidth - 5, position.bottom - 15, position.right,
+	boxes.setupBox(0, position.right - cancelWidth - 5, buttonTop, position.right,
 	               position.bottom, &_messages[54]);
 
 	bool end = false;
@@ -1117,8 +1251,8 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 	dstSurface.create(surface->w, surface->h, surface->format);
 	dstSurface.blitFrom(*surface);
 
-	// Horizontal bounds/centre derived from the actual surface width so the box
-	// is centred on the real view: 640 for 4:3 stills, 864 for the warp panorama.
+	// Bounds derived from the actual surface width (640 for 4:3 stills, up to the
+	// full screen width for the warp panorama).
 	const int msgMidX = (int)surface->w / 2;
 	const int msgRightLimit = (int)surface->w - 10;
 
@@ -1175,7 +1309,12 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 			notEnough = false;
 		}
 	}
-	rct.setHeight(lineCount * _fontManager.lineHeight() + 12);
+	// Reserve the FONT's max glyph height for the last line: CJK (Noto) glyphs are TALLER than
+	// the line advance, so a plain lineCount*lineHeight box was too short and displayBlockText's
+	// bottom check dropped the last line (e.g. the painter's name under a Chinese painting title).
+	uint _extraH = _fontManager.getFontMaxHeight() > _fontManager.lineHeight() ?
+	               _fontManager.getFontMaxHeight() - _fontManager.lineHeight() : 0;
+	rct.setHeight(lineCount * _fontManager.lineHeight() + _extraH + 14);
 	if (rct.bottom > 479) {
 		rct.bottom = 479;
 	}
@@ -1188,10 +1327,8 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 
 	drawCountdown(&dstSurface);
 
-	// The background may be a full-physical-width warp view (864, from
-	// displayMessageBoxWarp) or a narrower 4:3 surface (fixed image close-up).
-	// A full-width surface is already in physical space -> blit it raw; a 4:3
-	// surface is pillarboxed via copyRectToScreen2D.
+	// Full-width (warp) surfaces are blitted raw; narrower 4:3 surfaces are
+	// pillarboxed via copyRectToScreen2D.
 	if ((int)dstSurface.w >= (int)g_system->getWidth()) {
 		g_system->copyRectToScreen(dstSurface.getPixels(), dstSurface.pitch, 0, 0,
 		                           dstSurface.w, dstSurface.h);
@@ -1223,8 +1360,8 @@ void CryOmni3DEngine_Versailles::displayMessageBox(const MsgBoxParameters &param
 }
 
 void CryOmni3DEngine_Versailles::displayMessageBoxWarp(const Common::String &message) {
-	// The warp background is the full-width (864) panorama, so position the
-	// message box in physical screen space (raw mouse), not 2D/pillarboxed space.
+	// The warp background is the full-width panorama, so position the box in
+	// physical screen space (raw mouse).
 	Common::Point mousePos = getRawMousePos();
 	mousePos += Common::Point(0, 32);
 	int maxX = (int)g_system->getWidth() - 1;
