@@ -498,7 +498,7 @@ uint CryOmni3DEngine_Versailles::displayOptions() {
 				// Cycle the TEXT (subtitle) language: menus, documents, dialog
 				// text, object/menu images and fonts. Reloads fonts, so re-init
 				// the menu palette/fonts on the next draw as well.
-				changeTextLanguage(nextLanguage(getLanguage()));
+				changeTextLanguage(nextLanguage(_currentLanguage));
 				resetScreen = true;
 				drawState = 1;
 				selectedMsg = 0;
