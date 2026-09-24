@@ -16,8 +16,8 @@ CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "dists/win32/scummvm.exe.manifest
 
 // Common resources
 #ifdef VERSAILLES_STANDALONE
-IDI_ICON               ICON    "icons/versailles.ico"
-IDI_COUNT              ICON    "icons/versailles.ico"
+IDI_ICON               ICON    "icons/nativeforge.ico"
+IDI_COUNT              ICON    "icons/nativeforge.ico"
 #else
 IDI_ICON               ICON    "icons/scummvm.ico"
 IDI_COUNT              ICON    "icons/count.ico"
