@@ -1,4 +1,67 @@
-# Versailles 1685 — édition native (fork ScummVM cryomni3d) · Native Forge
+# Versailles 1685 — native Windows edition (ScummVM cryomni3d fork) · Native Forge
+
+*[Version française plus bas.](#versailles-1685--édition-native-windows-fork-scummvm-cryomni3d--native-forge)*
+
+This repository is a **fork of the `cryomni3d` engine from
+[ScummVM](https://www.scummvm.org)**, modified by **Native Forge** to produce a
+**standalone native edition for modern Windows** of the game *Versailles 1685 –
+Complot à la Cour du Roi Soleil* (Cryo Interactive, 1996), **without emulation**.
+
+The original game was a 16-bit executable that no longer runs on today's 64-bit
+Windows. This fork builds a standalone `versailles.exe` binary (based on ScummVM's
+cryomni3d engine) that reads the game data and runs it natively.
+
+> **Unofficial fan project — non-commercial.**
+> *Versailles 1685* and its data are © 1996 Cryo Interactive and its rights holders.
+> This repository contains **no game data or assets** whatsoever: you must own your
+> own disc / disc image of the game.
+
+## License
+
+Like ScummVM, this project is licensed under the **GNU General Public License v3**
+(see [`COPYING`](COPYING)). This repository is the **corresponding source code** for
+the `versailles.exe` binary distributed by Native Forge, as required by GPL v3.
+
+- Upstream: https://github.com/scummvm/scummvm
+- Upstream base of this fork: commit `1645a096`
+- All Native Forge changes live on the **`versailles-fork`** branch.
+
+## What this fork adds (over stock cryomni3d)
+
+Around 1,200 lines across ~24 files:
+
+- **16:9 / widescreen display**: full-width HUD, adaptive letterbox bars (solid color
+  for logos/title screens, ambient blur for scenes), crisp menus and documentation.
+- **In-game multilingual**: hot language switching (FR / EN / DE / ZH), separate voice
+  vs. text language, subtitles, translated menu labels (incl. Chinese Big5/CP950).
+- **Quality of life (standalone)**: fullscreen on start, optional bilinear filtering
+  (smooth upscale), settings persisted to the global domain.
+- **Gamepad**: in-game keymap (click, toolbar, skip).
+- **Fixes**: several crashes (toolbar over still images, language switching, message
+  boxes, screen bounds) and display artifacts.
+- **Icon**: the standalone executable uses the Native Forge icon
+  (`icons/nativeforge.ico`). The original game icon is **not** redistributed.
+
+Full detail is in the `versailles-fork` branch history (one commit per change).
+
+## Building
+
+Standalone Windows build via MSYS2 / MinGW-w64, with the cryomni3d engine and the
+`VERSAILLES_STANDALONE` flag. See ScummVM's build docs ([`doc/`](doc),
+`./configure --help`) for the base toolchain. This repository does not provide the
+game data — it must come from your own copy (CD / ISO) of *Versailles 1685*.
+
+## Credits
+
+- **ScummVM Team** — cryomni3d engine and ScummVM framework (see [`AUTHORS`](AUTHORS)).
+- **Cryo Interactive** — original *Versailles 1685* game (© 1996).
+- **Native Forge** — this fork, the native edition and packaging.
+
+Support Native Forge: https://ko-fi.com/nativeforge
+
+---
+
+# Versailles 1685 — édition native Windows (fork ScummVM cryomni3d) · Native Forge
 
 Ce dépôt est un **fork du moteur `cryomni3d` de [ScummVM](https://www.scummvm.org)**,
 modifié par **Native Forge** pour produire une **édition native autonome pour Windows
@@ -26,7 +89,7 @@ Comme ScummVM, ce projet est sous **GNU General Public License v3** (voir
 
 ## Ce que ce fork ajoute (par rapport au cryomni3d d'origine)
 
-Environ 1200 lignes sur ~24 fichiers, réparties ainsi :
+Environ 1200 lignes sur ~24 fichiers :
 
 - **Affichage 16:9 / widescreen** : HUD pleine largeur, barres latérales adaptatives
   (couleur unie pour les logos/écrans-titres, flou ambiant pour les scènes), rendu
@@ -49,10 +112,9 @@ changement).
 
 Build standalone Windows via MSYS2 / MinGW-w64, avec le moteur cryomni3d et le drapeau
 `VERSAILLES_STANDALONE`. Voir la documentation de build de ScummVM
-([`doc/`](doc), `./configure --help`) pour la chaîne d'outils de base.
-
-Ce dépôt ne fournit pas les données du jeu : elles doivent provenir de votre propre
-copie (CD / image ISO) de *Versailles 1685*.
+([`doc/`](doc), `./configure --help`) pour la chaîne d'outils de base. Ce dépôt ne
+fournit pas les données du jeu : elles doivent provenir de votre propre copie
+(CD / image ISO) de *Versailles 1685*.
 
 ## Crédits
 
