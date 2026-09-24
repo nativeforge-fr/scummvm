@@ -133,14 +133,22 @@ TTFLibrary::~TTFLibrary() {
 bool TTFLibrary::loadFont(Common::SeekableReadStream *ttfFile, FT_Stream stream, const int32 face_index, FT_Face &face) {
 	assert(_initialized);
 
+	// Clear the whole stream record: unused fields must be null (a garbage
+	// stream->base makes FT_Open_Face treat it as an in-memory font).
+	memset(stream, 0, sizeof(*stream));
+
 	FT_Open_Args args;
+	memset(&args, 0, sizeof(args));
 	args.flags = FT_OPEN_STREAM;
 	args.stream = stream;
 
+	// readCallback uses absolute offsets, so always read the whole file from 0
+	// (loadFont is called repeatedly on the same file, one call per face index).
+	ttfFile->seek(0);
 	stream->read = readCallback;
 	stream->descriptor.pointer = ttfFile;
-	stream->pos = ttfFile->pos();
-	stream->size = ttfFile->size() - stream->pos;
+	stream->pos = 0;
+	stream->size = ttfFile->size();
 
 	return (FT_Open_Face(_library, &args, face_index, &face) == 0);
 }

@@ -278,7 +278,9 @@ public:
 	bool hasPlaceDocumentation() override;
 	bool displayPlaceDocumentation() override;
 	uint displayOptions() override;
-	void displayDisplaySettings(); // widescreen standalone: per-category 2D display modes
+#ifdef VERSAILLES_QOL
+	void displayDisplaySettings(); // QoL build only: per-category 2D display modes + filter
+#endif
 	bool shouldAbort() override;
 
 private:
@@ -301,14 +303,19 @@ private:
 	//        voices (DIAL), dubbed cinematics (SC_TRANS)
 	Common::FSNode _gamePath;
 	Common::Language _audioLanguage;
+	bool _widescreen;                             // true = 16:9 (864), false = 4:3 (640); read at startup
+	bool _qol;                                    // true = enhancements (16:9, filter/format menus); false = original 4:3
+	bool isLanguageAvailable(Common::Language lang) const;        // TEXT: FR base always; others need lang/<code>/text_datasv|text_install
+	bool isAudioLanguageAvailable(Common::Language lang) const;   // VOICE: FR base always; others need lang/<code>/audio_datasv
+	uint countAvailableLanguages() const;         // installed languages (base FR + overlays)
 	void applyLanguageOverlays();                 // mount text+audio overlays for the current pair
 	void reloadTextData();                        // reload every TEXT-language-dependent resource live
 	void changeTextLanguage(Common::Language lang);
 	void changeAudioLanguage(Common::Language lang);
 	static const char *languageCode(Common::Language lang);   // "en","de","zh",... or nullptr for base FR
 	static const char *languageLabel(Common::Language lang);  // ASCII language name
-	static Common::Language nextLanguage(Common::Language lang);      // text: FR->EN->DE->ZH->FR
-	static Common::Language nextAudioLanguage(Common::Language lang); // voices: FR->EN->DE->FR (no Chinese dub)
+	Common::Language nextLanguage(Common::Language lang);      // text: FR->EN->DE->ZH->FR, skips unavailable
+	Common::Language nextAudioLanguage(Common::Language lang); // voices: FR->EN->DE->FR (no Chinese dub)
 	// Localized UI labels for the custom menu entries, in the current TEXT language.
 	const char *uiLabelFilter() const;
 	const char *uiLabelVoiceLang() const;

@@ -48,6 +48,7 @@ namespace Versailles {
 static Common::FSNode childCaseless(const Common::FSNode &parent, const Common::String &name);
 static Common::Language parseLanguageCode(const Common::String &code, Common::Language fallback);
 static Common::Language osDefaultLanguage(); // system language, mapped to a supported one (else English)
+static Common::Language defaultAudioForText(Common::Language textLang); // default voice track for a text language
 
 const FixedImageConfiguration CryOmni3DEngine_Versailles::kFixedImageConfiguration = {
 	45, 223, 243, 238, 226, 198, 136, 145, 99, 113,
@@ -126,27 +127,21 @@ void CryOmni3DEngine_Versailles::initializePath(const Common::FSNode &gamePath) 
 Common::Error CryOmni3DEngine_Versailles::run() {
 	CryOmni3DEngine::run();
 
-	// Widescreen standalone: apply the persisted TEXT and AUDIO language choices
-	// (independent) before loading any language-dependent data. The base
-	// game_data is French; other languages are mounted as overlays under
-	// lang/<code>/ (text_datasv + text_install for text, audio_datasv for audio).
+	// Apply the persisted text and audio language choices (independent) before
+	// loading language-dependent data. The base game_data is French; other
+	// languages are mounted as overlays under lang/<code>/.
 	if (ConfMan.hasKey("versailles_language")) {
 		setCurrentLanguage(parseLanguageCode(ConfMan.get("versailles_language"), getLanguage()));
 	} else {
-		// First launch: default the TEXT language to the PC's system language
-		// (French/English/German/Chinese), falling back to English.
+		// First launch: default to the system language, falling back to English.
 		setCurrentLanguage(osDefaultLanguage());
 	}
 	if (ConfMan.hasKey("versailles_audio_language")) {
 		_audioLanguage = parseLanguageCode(ConfMan.get("versailles_audio_language"), _audioLanguage);
 	} else {
-		// Chinese has no dub, so its audio defaults to English; otherwise match
-		// the text language.
-		_audioLanguage = (getLanguage() == Common::ZH_TWN) ? Common::EN_ANY : getLanguage();
+		_audioLanguage = defaultAudioForText(getLanguage());
 	}
-	// Subtitles on by default (needed for cross-language play and the Chinese
-	// text-only version), unless the player already chose otherwise. Stored in
-	// the persistent application domain.
+	// Subtitles on by default unless already chosen otherwise.
 	if (!ConfMan.hasKey("subtitles", Common::ConfigManager::kApplicationDomain)) {
 		ConfMan.setBool("subtitles", true, Common::ConfigManager::kApplicationDomain);
 	}
@@ -160,7 +155,28 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 	// Keep voice-filename padding in sync with the (possibly persisted) audio language.
 	_dialogsMan.setPadAudioFileName(_audioLanguage != Common::EN_ANY);
 	_gameVariables.resize(GameVariables::kMax);
-	_omni3dMan.init(75. / 180. * M_PI);
+	// Quality-of-life mode is chosen at BUILD time (two exes, same name): the QoL
+	// build enables the enhancements (16:9, filter/format menus); the original build
+	// compiles them out and forces the plain 4:3 experience.
+#ifdef VERSAILLES_QOL
+	_qol = true;
+#else
+	_qol = false;
+#endif
+	// Screen format, chosen at startup: 16:9 (864, default) or 4:3 (640).
+	// In original mode the format is forced to 4:3 regardless of the stored value.
+	_widescreen = _qol &&
+	              (ConfMan.hasKey("versailles_widescreen", Common::ConfigManager::kApplicationDomain)
+	               ? ConfMan.getBool("versailles_widescreen", Common::ConfigManager::kApplicationDomain)
+	               : true);
+	_omni3dMan.init(75. / 180. * M_PI, _widescreen);
+
+	// Set the screen size before _toolbar.init (which sizes its HUD from the
+	// screen width). 16:9: 864 with 4:3 content pillarboxed at +112. 4:3: 640,
+	// content fills the screen (offset 0).
+	int screenW = _widescreen ? 864 : 640;
+	initGraphics(screenW, 480);
+	g_screen2DOffsetX = (screenW - 640) / 2; // 112 in 16:9, 0 in 4:3
 
 	_dialogsMan.loadGTO(getFilePath(kFileTypeGTO, _localizedFilenames[LocalizedFilenames::kDialogs]));
 	setupDialogVariables();
@@ -203,20 +219,15 @@ Common::Error CryOmni3DEngine_Versailles::run() {
 
 	_countdownSurface.create(40, 15, Graphics::PixelFormat::createFormatCLUT8());
 
-	// Widescreen hor+ (VERSAILLES_STANDALONE): widen the screen to 864x480
-	// (~16:9). The OMNI3D panorama fills the full width; 4:3 content
-	// (menus, fixed images, videos, toolbar) is drawn centered (pillarboxed)
-	// via copyRectToScreen2D() with this horizontal offset.
-	initGraphics(864, 480);
-	g_screen2DOffsetX = (864 - 640) / 2; // 112
+	// Screen size was already applied above (before _toolbar.init).
 	setMousePos(Common::Point(320, 200));
 
 	// Bilinear filtering: default OFF. Honor the value the in-game toggle
 	// persisted in the application domain (our settings live there because the
 	// standalone runs in a transient game domain).
 	{
-		bool filt = ConfMan.hasKey("filtering", Common::ConfigManager::kApplicationDomain)
-		            ? ConfMan.getBool("filtering") : false;
+		bool filt = _qol && (ConfMan.hasKey("filtering", Common::ConfigManager::kApplicationDomain)
+		            ? ConfMan.getBool("filtering") : false);
 		g_system->beginGFXTransaction();
 		g_system->setFeatureState(OSystem::kFeatureFilteringMode, filt);
 		g_system->endGFXTransaction();
@@ -534,6 +545,28 @@ Common::Path CryOmni3DEngine_Versailles::getFilePath(FileType fileType,
 	return Common::Path(baseName);
 }
 
+// Does a TrueType font list (FONTS_*.LST) resolve, i.e. does the list open and is
+// the first referenced font file actually present? Used to decide whether to load
+// the bundled CJK TTFs via loadTTFList (which aborts the game on a missing font)
+// or to fall back to another font set.
+static bool cjkFontListResolves(const Common::Path &lstPath) {
+	Common::File lf;
+	if (!Common::File::exists(lstPath) || !lf.open(lstPath)) {
+		return false;
+	}
+	lf.readLine();                 // font count
+	Common::String line = lf.readLine();
+	lf.close();
+	uint32 h1 = line.findFirstOf('#');
+	uint32 h2 = (h1 == Common::String::npos) ? Common::String::npos : line.findFirstOf('#', h1 + 1);
+	if (h2 == Common::String::npos) {
+		return false;
+	}
+	Common::String fontFile(line.begin() + h1 + 1, line.begin() + h2);
+	return Common::File::exists(Common::Path(fontFile)) ||
+	       Common::File::exists(lstPath.getParent().appendComponent(fontFile));
+}
+
 void CryOmni3DEngine_Versailles::setupFonts() {
 	Common::Array<Common::Path> fonts;
 
@@ -544,6 +577,13 @@ void CryOmni3DEngine_Versailles::setupFonts() {
 #define ADD_FONT(f) fonts.push_back(getFilePath(kFileTypeFont, f))
 
 	if (getLanguage() == Common::ZH_TWN) {
+		// Prefer a full Traditional Chinese TTF (FONTS_ZH.LST) for complete glyph
+		// coverage; fall back to the bundled tw*.CRF bitmap fonts if absent.
+		Common::Path zhLst = getFilePath(kFileTypeFont, "FONTS_ZH.LST");
+		if (cjkFontListResolves(zhLst)) {
+			_fontManager.loadTTFList(zhLst, Common::kWindows950);
+			return;
+		}
 		ADD_FONT("tw13.CRF"); // 0: Doc titles
 		ADD_FONT("tw18.CRF"); // 1: Menu and T0 in credits
 		ADD_FONT("tw13.CRF"); // 2: T1 and T3 in credits
@@ -558,12 +598,21 @@ void CryOmni3DEngine_Versailles::setupFonts() {
 
 		_fontManager.loadFonts(fonts, Common::kWindows950);
 		return;
-	} else if (getLanguage() == Common::JA_JPN) {
-		_fontManager.loadTTFList(getFilePath(kFileTypeFont, "FONTS_JP.LST"), Common::kWindows932);
-		return;
-	} else if (getLanguage() == Common::KO_KOR) {
-		_fontManager.loadTTFList(getFilePath(kFileTypeFont, "FONTS_KR.LST"), Common::kWindows949);
-		return;
+	} else if (getLanguage() == Common::JA_JPN || getLanguage() == Common::KO_KOR) {
+		// Japanese/Korean use bundled TrueType fonts listed in FONTS_JP/KR.LST.
+		// If the list/font is missing, fall through to the Latin set (loadTTFList
+		// would otherwise abort on a missing font).
+		const bool isJa = (getLanguage() == Common::JA_JPN);
+		const char *lstName = isJa ? "FONTS_JP.LST" : "FONTS_KR.LST";
+		const Common::CodePage cp = isJa ? Common::kWindows932 : Common::kWindows949;
+		Common::Path lstPath = getFilePath(kFileTypeFont, lstName);
+		if (cjkFontListResolves(lstPath)) {
+			_fontManager.loadTTFList(lstPath, cp);
+			return;
+		}
+		warning("CJK font for %s unavailable; falling back to Latin fonts",
+		        isJa ? "Japanese" : "Korean");
+		// fall through to the Latin SBCS block below
 	}
 
 	// Code below is for SBCS encodings (ie. non CJK)
@@ -2058,6 +2107,16 @@ const char *CryOmni3DEngine_Versailles::languageCode(Common::Language lang) {
 		return "en";
 	case Common::DE_DEU:
 		return "de";
+	case Common::IT_ITA:
+		return "it";
+	case Common::ES_ESP:
+		return "es";
+	case Common::PT_BRA:
+		return "br"; // matches the .dat language tag
+	case Common::JA_JPN:
+		return "ja";
+	case Common::KO_KOR:
+		return "ko";
 	case Common::ZH_TWN:
 		return "zh";
 	case Common::FR_FRA:
@@ -2072,6 +2131,16 @@ const char *CryOmni3DEngine_Versailles::languageLabel(Common::Language lang) {
 		return "English";
 	case Common::DE_DEU:
 		return "Deutsch";
+	case Common::IT_ITA:
+		return "Italiano";
+	case Common::ES_ESP:
+		return "Espanol";
+	case Common::PT_BRA:
+		return "Portugues";
+	case Common::JA_JPN:
+		return "Japanese";
+	case Common::KO_KOR:
+		return "Korean";
 	case Common::ZH_TWN:
 		return "Chinese";
 	case Common::FR_FRA:
@@ -2080,32 +2149,101 @@ const char *CryOmni3DEngine_Versailles::languageLabel(Common::Language lang) {
 	}
 }
 
-Common::Language CryOmni3DEngine_Versailles::nextLanguage(Common::Language lang) {
+bool CryOmni3DEngine_Versailles::isLanguageAvailable(Common::Language lang) const {
+	// TEXT availability: the base game_data is French; other TEXT languages need a
+	// text overlay (text_datasv / text_install). A language that only ships a voice
+	// track (audio_datasv, e.g. English installed as the Chinese edition's voice)
+	// must NOT appear in the TEXT menu -> do not test audio_datasv here.
+	if (lang == Common::FR_FRA) {
+		return true;
+	}
+	const char *code = languageCode(lang);
+	if (!code) {
+		return true;
+	}
+	Common::FSNode root = childCaseless(childCaseless(_gamePath, "lang"), code);
+	return childCaseless(root, "text_datasv").exists() ||
+	       childCaseless(root, "text_install").exists();
+}
+
+bool CryOmni3DEngine_Versailles::isAudioLanguageAvailable(Common::Language lang) const {
+	// AUDIO availability: the base voice track is French; other VOICE languages need
+	// an audio overlay (lang/<code>/audio_datasv). Used for the voice-language menu.
+	if (lang == Common::FR_FRA) {
+		return true;
+	}
+	const char *code = languageCode(lang);
+	if (!code) {
+		return true;
+	}
+	Common::FSNode root = childCaseless(childCaseless(_gamePath, "lang"), code);
+	return childCaseless(root, "audio_datasv").exists();
+}
+
+uint CryOmni3DEngine_Versailles::countAvailableLanguages() const {
+	static const Common::Language kAll[] = {
+		Common::FR_FRA, Common::EN_ANY, Common::DE_DEU, Common::IT_ITA, Common::ES_ESP,
+		Common::PT_BRA, Common::JA_JPN, Common::KO_KOR, Common::ZH_TWN
+	};
+	uint n = 0;
+	for (uint i = 0; i < ARRAYSIZE(kAll); i++) {
+		if (isLanguageAvailable(kAll[i])) {
+			n++;
+		}
+	}
+	return n;
+}
+
+static Common::Language rawNextTextLanguage(Common::Language lang) {
+	// Console-style order: common languages first, Asian ones last.
 	switch (lang) {
-	case Common::FR_FRA:
-		return Common::EN_ANY;
-	case Common::EN_ANY:
-		return Common::DE_DEU;
-	case Common::DE_DEU:
-		return Common::ZH_TWN;
+	case Common::FR_FRA: return Common::EN_ANY;
+	case Common::EN_ANY: return Common::DE_DEU;
+	case Common::DE_DEU: return Common::IT_ITA;
+	case Common::IT_ITA: return Common::ES_ESP;
+	case Common::ES_ESP: return Common::PT_BRA;
+	case Common::PT_BRA: return Common::JA_JPN;
+	case Common::JA_JPN: return Common::KO_KOR;
+	case Common::KO_KOR: return Common::ZH_TWN;
 	case Common::ZH_TWN:
-	default:
-		return Common::FR_FRA;
+	default:             return Common::FR_FRA;
 	}
 }
 
-Common::Language CryOmni3DEngine_Versailles::nextAudioLanguage(Common::Language lang) {
-	// Chinese has no dub (its "voices" are the English track), so the audio
-	// cycle skips it: French -> English -> German -> French.
+static Common::Language rawNextAudioLanguage(Common::Language lang) {
+	// Only languages with a real dub: FR -> EN -> DE -> IT -> ES -> PT -> (loop).
 	switch (lang) {
-	case Common::FR_FRA:
-		return Common::EN_ANY;
-	case Common::EN_ANY:
-		return Common::DE_DEU;
-	case Common::DE_DEU:
-	default:
-		return Common::FR_FRA;
+	case Common::FR_FRA: return Common::EN_ANY;
+	case Common::EN_ANY: return Common::DE_DEU;
+	case Common::DE_DEU: return Common::IT_ITA;
+	case Common::IT_ITA: return Common::ES_ESP;
+	case Common::ES_ESP: return Common::PT_BRA;
+	case Common::PT_BRA:
+	default:             return Common::FR_FRA;
 	}
+}
+
+Common::Language CryOmni3DEngine_Versailles::nextLanguage(Common::Language lang) {
+	// Cycle to the next INSTALLED language (skip those without an overlay).
+	Common::Language l = lang;
+	for (int i = 0; i < 9; i++) {
+		l = rawNextTextLanguage(l);
+		if (isLanguageAvailable(l)) {
+			return l;
+		}
+	}
+	return lang; // nothing else installed: stay put
+}
+
+Common::Language CryOmni3DEngine_Versailles::nextAudioLanguage(Common::Language lang) {
+	Common::Language l = lang;
+	for (int i = 0; i < 6; i++) {
+		l = rawNextAudioLanguage(l);
+		if (isAudioLanguageAvailable(l)) {
+			return l;
+		}
+	}
+	return lang;
 }
 
 static Common::Language parseLanguageCode(const Common::String &code, Common::Language fallback) {
@@ -2115,6 +2253,16 @@ static Common::Language parseLanguageCode(const Common::String &code, Common::La
 		return Common::EN_ANY;
 	} else if (code == "de") {
 		return Common::DE_DEU;
+	} else if (code == "it") {
+		return Common::IT_ITA;
+	} else if (code == "es") {
+		return Common::ES_ESP;
+	} else if (code == "br" || code == "pt") {
+		return Common::PT_BRA;
+	} else if (code == "ja") {
+		return Common::JA_JPN;
+	} else if (code == "ko") {
+		return Common::KO_KOR;
 	} else if (code == "zh") {
 		return Common::ZH_TWN;
 	}
@@ -2122,9 +2270,8 @@ static Common::Language parseLanguageCode(const Common::String &code, Common::La
 }
 
 static Common::Language osDefaultLanguage() {
-	// g_system->getSystemLanguage() returns a POSIX-style locale ("fr_FR",
-	// "de_DE", "zh_TW", "en_US", ...) on both Windows and Linux. Map its language
-	// part to a supported language; anything else falls back to English.
+	// Map the system locale ("fr_FR", "zh_TW", ...) to a supported language,
+	// falling back to English.
 	Common::String loc = g_system->getSystemLanguage();
 	Common::String code2 = (loc.size() >= 2) ? Common::String(loc.c_str(), 2) : Common::String("en");
 	code2.toLowercase();
@@ -2132,14 +2279,38 @@ static Common::Language osDefaultLanguage() {
 		return Common::FR_FRA;
 	} else if (code2 == "de") {
 		return Common::DE_DEU;
+	} else if (code2 == "it") {
+		return Common::IT_ITA;
+	} else if (code2 == "es") {
+		return Common::ES_ESP;
+	} else if (code2 == "pt") {
+		return Common::PT_BRA; // only Brazilian Portuguese data is available
+	} else if (code2 == "ja") {
+		return Common::JA_JPN;
+	} else if (code2 == "ko") {
+		return Common::KO_KOR;
 	} else if (code2 == "zh") {
 		return Common::ZH_TWN;
 	}
 	return Common::EN_ANY;
 }
 
-// Mount a lang/<code>/<subdir> as a SearchMan directory under a stable name so
-// it can be swapped later. Absent directories are simply skipped.
+static Common::Language defaultAudioForText(Common::Language textLang) {
+	// Asian releases are subtitle-only (no native dub): the Japanese edition shipped
+	// the FRENCH voice track, the Korean and Chinese editions shipped the ENGLISH one.
+	// Other languages are dubbed, so the voice track follows the text language.
+	switch (textLang) {
+	case Common::JA_JPN:
+		return Common::FR_FRA;
+	case Common::KO_KOR:
+	case Common::ZH_TWN:
+		return Common::EN_ANY;
+	default:
+		return textLang;
+	}
+}
+
+// Mount the text and audio overlays for the current language pair.
 void CryOmni3DEngine_Versailles::applyLanguageOverlays() {
 	static const char *const kNames[] = {
 		"versailles_text_datasv", "versailles_text_install", "versailles_audio_datasv"
@@ -2177,17 +2348,12 @@ void CryOmni3DEngine_Versailles::applyLanguageOverlays() {
 }
 
 void CryOmni3DEngine_Versailles::reloadTextData() {
-	// Reload every TEXT-language-dependent resource live. On-demand assets
-	// (voices, cinematics, localized images) come through SearchMan, already
-	// re-pointed, so only the preloaded data needs refreshing.
-	loadStaticData();     // messages, localized filenames, painting titles, subtitles
-	setupFonts();         // Latin vs CJK fonts follow the text language
-	// NB: do NOT call setupObjects() here — it appends ~50 objects without
-	// clearing (would overflow the inventory and crash). Object names are
-	// _messages[] indices, so they follow the reloaded messages automatically.
+	// Reload the preloaded text-language-dependent resources (on-demand assets
+	// come through SearchMan, already re-pointed).
+	loadStaticData();
+	setupFonts();
+	// Do NOT call setupObjects() here: it appends objects without clearing.
 	_dialogsMan.init(138, _messages[22]);
-	// Dialog text (GTO) follows the text language; voice names inside it use the
-	// audio language's padding.
 	_dialogsMan.setPadAudioFileName(_audioLanguage != Common::EN_ANY);
 	_dialogsMan.loadGTO(getFilePath(kFileTypeGTO, _localizedFilenames[LocalizedFilenames::kDialogs]));
 
@@ -2203,14 +2369,21 @@ void CryOmni3DEngine_Versailles::changeTextLanguage(Common::Language lang) {
 		return;
 	}
 	setCurrentLanguage(lang);
+
+	// Voices follow the text language by default (set before mounting overlays);
+	// the player can still override the voice track separately.
+	_audioLanguage = defaultAudioForText(lang);
 	applyLanguageOverlays();
 
 	const char *code = languageCode(lang);
-	// Persist in the global (application) domain so it survives relaunch: the
-	// standalone auto-detects the game into a transient domain that is not saved.
+	// Persist in the application domain (the game runs in a transient domain).
 	ConfMan.set("versailles_language", code ? code : "fr", Common::ConfigManager::kApplicationDomain);
+	const char *audioCode = languageCode(_audioLanguage);
+	ConfMan.set("versailles_audio_language", audioCode ? audioCode : "fr",
+	            Common::ConfigManager::kApplicationDomain);
 	ConfMan.flushToDisk();
 
+	// reloadTextData() re-applies the voice-name padding from _audioLanguage.
 	reloadTextData();
 }
 
@@ -2230,12 +2403,7 @@ void CryOmni3DEngine_Versailles::changeAudioLanguage(Common::Language lang) {
 	_dialogsMan.setPadAudioFileName(_audioLanguage != Common::EN_ANY);
 }
 
-// ---- Localized UI labels for the custom menu entries (current text language) ----
-// ASCII only, so they render with any font (including the CJK menu font).
-
-// The Chinese (ZH_TWN) strings are Big5 / CP950 byte sequences, matching the
-// encoding of the game's own Chinese menu strings (setupFonts loads the CJK
-// font with kWindows950), so they render with the tw12 font.
+// Localized UI labels for the custom menu entries (in the current text language).
 int CryOmni3DEngine_Versailles::barModeForCategory(const char *confKey, int defMode) const {
 	int m = ConfMan.hasKey(confKey) ? ConfMan.getInt(confKey) : defMode;
 	if (m < kScreen2DBarModeAmbient || m > kScreen2DBarModeStretch) {
@@ -2248,7 +2416,12 @@ const char *CryOmni3DEngine_Versailles::uiLabelFilter() const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return "Filtrage image";
 	case Common::DE_DEU: return "Bildfilter";
-	case Common::ZH_TWN: return "\xbc\x76\xb9\xb3\xc2\x6f\xc3\xe8"; // 影像濾鏡
+	case Common::IT_ITA: return "Filtro immagine";
+	case Common::ES_ESP: return "Filtro imagen";
+	case Common::PT_BRA: return "Filtro de imagem";
+	case Common::ZH_TWN: return "\xbc\x76\xb9\xb3\xc2\x6f\xc3\xe8";                   // 影像濾鏡 (Big5)
+	case Common::JA_JPN: return "\x89\xe6\x91\x9c\x83\x74\x83\x42\x83\x8b\x83\x5e";   // 画像フィルタ (Shift-JIS)
+	case Common::KO_KOR: return "\xc0\xcc\xb9\xcc\xc1\xf6\x20\xc7\xca\xc5\xcd";       // 이미지 필터 (CP949)
 	default:             return "Image filter";
 	}
 }
@@ -2257,7 +2430,12 @@ const char *CryOmni3DEngine_Versailles::uiLabelVoiceLang() const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return "Langue des voix";
 	case Common::DE_DEU: return "Sprache Stimmen";
-	case Common::ZH_TWN: return "\xbb\x79\xad\xb5\xbb\x79\xa8\xa5"; // 語音語言
+	case Common::IT_ITA: return "Lingua voci";
+	case Common::ES_ESP: return "Idioma voces";
+	case Common::PT_BRA: return "Idioma das vozes";
+	case Common::ZH_TWN: return "\xbb\x79\xad\xb5\xbb\x79\xa8\xa5";       // 語音語言 (Big5)
+	case Common::JA_JPN: return "\x89\xb9\x90\xba\x8c\xbe\x8c\xea";       // 音声言語 (Shift-JIS)
+	case Common::KO_KOR: return "\xc0\xbd\xbc\xba\x20\xbe\xf0\xbe\xee";   // 음성 언어 (CP949)
 	default:             return "Voice language";
 	}
 }
@@ -2266,7 +2444,12 @@ const char *CryOmni3DEngine_Versailles::uiLabelTextLang() const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return "Langue des textes";
 	case Common::DE_DEU: return "Sprache Texte";
-	case Common::ZH_TWN: return "\xa4\xe5\xa6\x72\xbb\x79\xa8\xa5"; // 文字語言
+	case Common::IT_ITA: return "Lingua testi";
+	case Common::ES_ESP: return "Idioma textos";
+	case Common::PT_BRA: return "Idioma dos textos";
+	case Common::ZH_TWN: return "\xa4\xe5\xa6\x72\xbb\x79\xa8\xa5";       // 文字語言 (Big5)
+	case Common::JA_JPN: return "\x95\xb6\x8e\x9a\x8c\xbe\x8c\xea";       // 文字言語 (Shift-JIS)
+	case Common::KO_KOR: return "\xb9\xae\xc0\xda\x20\xbe\xf0\xbe\xee";   // 문자 언어 (CP949)
 	default:             return "Text language";
 	}
 }
@@ -2275,41 +2458,129 @@ const char *CryOmni3DEngine_Versailles::uiLabelOnOff(bool on) const {
 	switch (getLanguage()) {
 	case Common::FR_FRA: return on ? "OUI" : "NON";
 	case Common::DE_DEU: return on ? "JA" : "NEIN";
-	case Common::ZH_TWN: return on ? "\xb6\x7d" : "\xc3\xf6"; // 開 / 關
+	case Common::IT_ITA: return on ? "SI" : "NO";
+	case Common::ES_ESP: return on ? "SI" : "NO";
+	case Common::PT_BRA: return on ? "SIM" : "N" "\xcc" "O";            // SIM / NÃO
+	case Common::ZH_TWN: return on ? "\xb6\x7d" : "\xc3\xf6";           // 開 / 關 (Big5)
+	case Common::JA_JPN: return on ? "\x83\x49\x83\x93" : "\x83\x49\x83\x74"; // オン / オフ (Shift-JIS)
+	case Common::KO_KOR: return on ? "\xc4\xd1\xc1\xfc" : "\xb2\xa8\xc1\xfc"; // 켜짐 / 꺼짐 (CP949)
 	default:             return on ? "ON" : "OFF";
 	}
 }
 
 const char *CryOmni3DEngine_Versailles::languageNameLocalized(Common::Language named) const {
-	// Name of 'named' written in the current text language.
+	// Name of 'named' in the current text language (exonyms), drawn with that
+	// language's font. Latin names use Mac Roman bytes for accents (the game data
+	// is Mac Roman, not Windows-1252); CJK names use each font's codepage
+	// (Shift-JIS / CP949 / Big5).
 	switch (getLanguage()) {
-	case Common::FR_FRA:
+	case Common::JA_JPN: // Shift-JIS
+		switch (named) {
+		case Common::EN_ANY: return "\x89\x70\x8c\xea";                             // 英語
+		case Common::DE_DEU: return "\x83\x68\x83\x43\x83\x63\x8c\xea";             // ドイツ語
+		case Common::IT_ITA: return "\x83\x43\x83\x5e\x83\x8a\x83\x41\x8c\xea";     // イタリア語
+		case Common::ES_ESP: return "\x83\x58\x83\x79\x83\x43\x83\x93\x8c\xea";     // スペイン語
+		case Common::PT_BRA: return "\x83\x7c\x83\x8b\x83\x67\x83\x4b\x83\x8b\x8c\xea"; // ポルトガル語
+		case Common::KO_KOR: return "\x8a\xd8\x8d\x91\x8c\xea";                     // 韓国語
+		case Common::ZH_TWN: return "\x92\x86\x8d\x91\x8c\xea";                     // 中国語
+		case Common::JA_JPN: return "\x93\xfa\x96\x7b\x8c\xea";                     // 日本語
+		default:             return "\x83\x74\x83\x89\x83\x93\x83\x58\x8c\xea";     // フランス語
+		}
+	case Common::KO_KOR: // CP949
+		switch (named) {
+		case Common::EN_ANY: return "\xbf\xb5\xbe\xee";                             // 영어
+		case Common::DE_DEU: return "\xb5\xb6\xc0\xcf\xbe\xee";                     // 독일어
+		case Common::IT_ITA: return "\xc0\xcc\xc5\xbb\xb8\xae\xbe\xc6\xbe\xee";     // 이탈리아어
+		case Common::ES_ESP: return "\xbd\xba\xc6\xe4\xc0\xce\xbe\xee";             // 스페인어
+		case Common::PT_BRA: return "\xc6\xf7\xb8\xa3\xc5\xf5\xb0\xa5\xbe\xee";     // 포르투갈어
+		case Common::JA_JPN: return "\xc0\xcf\xba\xbb\xbe\xee";                     // 일본어
+		case Common::ZH_TWN: return "\xc1\xdf\xb1\xb9\xbe\xee";                     // 중국어
+		case Common::KO_KOR: return "\xc7\xd1\xb1\xb9\xbe\xee";                     // 한국어
+		default:             return "\xc7\xc1\xb6\xfb\xbd\xba\xbe\xee";             // 프랑스어
+		}
+	case Common::ZH_TWN: // Big5
+		switch (named) {
+		case Common::EN_ANY: return "\xad\x5e\xa4\xe5";                             // 英文
+		case Common::DE_DEU: return "\xbc\x77\xa4\xe5";                             // 德文
+		case Common::IT_ITA: return "\xb8\x71\xa4\x6a\xa7\x51\xa4\xe5";             // 義大利文
+		case Common::ES_ESP: return "\xa6\xe8\xaf\x5a\xa4\xfa\xa4\xe5";             // 西班牙文
+		case Common::PT_BRA: return "\xb8\xb2\xb5\xe5\xa4\xfa\xa4\xe5";             // 葡萄牙文
+		case Common::JA_JPN: return "\xa4\xe9\xa4\xe5";                             // 日文
+		case Common::KO_KOR: return "\xc1\xfa\xa4\xe5";                             // 韓文
+		case Common::ZH_TWN: return "\xa4\xa4\xa4\xe5";                             // 中文
+		default:             return "\xaa\x6b\xa4\xe5";                             // 法文
+		}
+	case Common::FR_FRA: // French exonyms (Mac Roman accents)
 		switch (named) {
 		case Common::EN_ANY: return "Anglais";
 		case Common::DE_DEU: return "Allemand";
+		case Common::IT_ITA: return "Italien";
+		case Common::ES_ESP: return "Espagnol";
+		case Common::PT_BRA: return "Portugais";
+		case Common::JA_JPN: return "Japonais";
+		case Common::KO_KOR: return "Cor" "\x8e" "en";       // Coréen
 		case Common::ZH_TWN: return "Chinois";
-		default:             return "Francais";
+		default:             return "Fran" "\x8d" "ais";     // Français
 		}
-	case Common::DE_DEU:
+	case Common::DE_DEU: // German exonyms (ASCII, matching the other DE labels)
 		switch (named) {
 		case Common::EN_ANY: return "Englisch";
-		case Common::DE_DEU: return "Deutsch";
+		case Common::FR_FRA: return "Franzoesisch";
+		case Common::IT_ITA: return "Italienisch";
+		case Common::ES_ESP: return "Spanisch";
+		case Common::PT_BRA: return "Portugiesisch";
+		case Common::JA_JPN: return "Japanisch";
+		case Common::KO_KOR: return "Koreanisch";
 		case Common::ZH_TWN: return "Chinesisch";
-		default:             return "Franzoesisch";
+		default:             return "Deutsch";
 		}
-	case Common::ZH_TWN: // Big5: 法文 / 英文 / 德文 / 中文
+	case Common::IT_ITA: // Italian exonyms
 		switch (named) {
-		case Common::EN_ANY: return "\xad\x5e\xa4\xe5";
-		case Common::DE_DEU: return "\xbc\x77\xa4\xe5";
-		case Common::ZH_TWN: return "\xa4\xa4\xa4\xe5";
-		default:             return "\xaa\x6b\xa4\xe5";
+		case Common::EN_ANY: return "Inglese";
+		case Common::FR_FRA: return "Francese";
+		case Common::DE_DEU: return "Tedesco";
+		case Common::ES_ESP: return "Spagnolo";
+		case Common::PT_BRA: return "Portoghese";
+		case Common::JA_JPN: return "Giapponese";
+		case Common::KO_KOR: return "Coreano";
+		case Common::ZH_TWN: return "Cinese";
+		default:             return "Italiano";
 		}
-	default: // EN
+	case Common::ES_ESP: // Spanish exonyms (Mac Roman accents)
 		switch (named) {
-		case Common::EN_ANY: return "English";
+		case Common::EN_ANY: return "Ingl" "\x8e" "s";       // Inglés
+		case Common::FR_FRA: return "Franc" "\x8e" "s";      // Francés
+		case Common::DE_DEU: return "Alem" "\x87" "n";       // Alemán
+		case Common::IT_ITA: return "Italiano";
+		case Common::PT_BRA: return "Portugu" "\x8e" "s";    // Portugués
+		case Common::JA_JPN: return "Japon" "\x8e" "s";      // Japonés
+		case Common::KO_KOR: return "Coreano";
+		case Common::ZH_TWN: return "Chino";
+		default:             return "Espa" "\x96" "ol";      // Español
+		}
+	case Common::PT_BRA: // Portuguese exonyms (Mac Roman accents)
+		switch (named) {
+		case Common::EN_ANY: return "Ingl" "\x90" "s";       // Inglês
+		case Common::FR_FRA: return "Franc" "\x90" "s";      // Francês
+		case Common::DE_DEU: return "Alem" "\x8b" "o";       // Alemão
+		case Common::IT_ITA: return "Italiano";
+		case Common::ES_ESP: return "Espanhol";
+		case Common::JA_JPN: return "Japon" "\x90" "s";      // Japonês
+		case Common::KO_KOR: return "Coreano";
+		case Common::ZH_TWN: return "Chin" "\x90" "s";       // Chinês
+		default:             return "Portugu" "\x90" "s";    // Português
+		}
+	default: // English exonyms
+		switch (named) {
+		case Common::FR_FRA: return "French";
 		case Common::DE_DEU: return "German";
+		case Common::IT_ITA: return "Italian";
+		case Common::ES_ESP: return "Spanish";
+		case Common::PT_BRA: return "Portuguese";
+		case Common::JA_JPN: return "Japanese";
+		case Common::KO_KOR: return "Korean";
 		case Common::ZH_TWN: return "Chinese";
-		default:             return "French";
+		default:             return "English";
 		}
 	}
 }

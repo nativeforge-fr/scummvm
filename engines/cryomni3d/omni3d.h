@@ -30,10 +30,13 @@ class Omni3DManager {
 public:
 	Omni3DManager() : _vfov(0), _alpha(0), _beta(0), _xSpeed(0), _ySpeed(0), _alphaMin(0), _alphaMax(0),
 		_betaMin(0), _betaMax(0), _helperValue(0), _dirty(true), _dirtyCoords(true),
-		_sourceSurface(nullptr) {}
+		_sourceSurface(nullptr), _tilesX(54), _halfX(27), _rowstride(110), _w(864) {}
 	virtual ~Omni3DManager();
 
-	void init(double hfov);
+	// widescreen: 54 tiles (864 px, 16:9) vs 40 tiles (640 px, 4:3).
+	void init(double hfov, bool widescreen = true);
+
+	int getWidth() const { return _w; }
 
 	void setSourceSurface(const Graphics::Surface *surface) { _sourceSurface = surface; _dirty = true; }
 
@@ -66,15 +69,19 @@ private:
 	double _alphaMin, _alphaMax;
 	double _betaMin, _betaMax;
 
-	// Widescreen hor+ (VERSAILLES_STANDALONE): horizontal tile count widened
-	// from 40 to O3D_TILES_X while vertical stays 30. Arrays sized for the
-	// widest configuration. See omni3d.cpp for the O3D_* constants.
-	int _imageCoords[3520];      // >= 2*(O3D_TILES_X+1)*(O3D_TILES_Y+1)+2 = 3412 (mirror writes reach k+offset+1); margin
-	double _squaresCoords[31][28]; // [O3D_TILES_Y+1][O3D_HALF_X+1] = [31][28]
+	// Arrays sized for the widest configuration (54 horizontal tiles).
+	int _imageCoords[3520];
+	double _squaresCoords[31][28];
 	double _hypothenusesH[31];
 	double _anglesH[31];
-	double _oppositeV[28];         // [O3D_HALF_X+1]
+	double _oppositeV[28];
 	double _helperValue;
+
+	// Horizontal geometry (4:3 vs 16:9); vertical stays 30 tiles / 480 px.
+	int _tilesX;     // 40 or 54
+	int _halfX;      // _tilesX / 2
+	int _rowstride;  // 2 * (_tilesX + 1)
+	int _w;          // _tilesX * 16
 
 	bool _dirty;
 	bool _dirtyCoords;

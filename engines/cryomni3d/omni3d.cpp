@@ -39,7 +39,14 @@ namespace CryOmni3D {
 #define O3D_W         (O3D_TILES_X * 16)    // 864
 #define O3D_H         (O3D_TILES_Y * 16)    // 480
 
-void Omni3DManager::init(double hfov) {
+void Omni3DManager::init(double hfov, bool widescreen) {
+	// 54 tiles (864, 16:9) or 40 tiles (640, 4:3). The per-tile angular step is
+	// the same in both, so tile count sets the horizontal FOV. Vertical = 30.
+	_tilesX = widescreen ? O3D_TILES_X : 40;
+	_halfX = _tilesX / 2;
+	_rowstride = 2 * (_tilesX + 1);
+	_w = _tilesX * 16;
+
 	_alpha = 0.;
 	_beta = 0.;
 	_xSpeed = 0.;
@@ -62,8 +69,8 @@ void Omni3DManager::init(double hfov) {
 		_hypothenusesH[i] = sqrt(oppH * oppH + 1);
 
 		double oppVTot = hypV * _hypothenusesH[i];
-		for (int j = 0; j < O3D_HALF_X + 1; j++) {
-			double oppV = (j - O3D_HALF_X) * oppHTot;
+		for (int j = 0; j < _halfX + 1; j++) {
+			double oppV = (j - _halfX) * oppHTot;
 
 			_oppositeV[j] = oppV;
 
@@ -75,7 +82,7 @@ void Omni3DManager::init(double hfov) {
 		}
 	}
 
-	_surface.create(O3D_W, O3D_H, Graphics::PixelFormat::createFormatCLUT8());
+	_surface.create(_w, O3D_H, Graphics::PixelFormat::createFormatCLUT8());
 	clearConstraints();
 }
 
@@ -161,9 +168,9 @@ void Omni3DManager::updateImageCoords() {
 		double v26 = sin(v11);
 		double v25 = cos(v11) * _hypothenusesH[i];
 
-		uint offset = 2 * O3D_TILES_X;
+		uint offset = 2 * _tilesX;
 		uint j;
-		for (j = 0; j < (uint)O3D_HALF_X; j++) {
+		for (j = 0; j < (uint)_halfX; j++) {
 			double v16 = atan2(_oppositeV[j], v25);
 			double v17 = v16 * _helperValue;
 			double v18 = (384 * 65536) - _squaresCoords[i][j] * v26;
@@ -183,7 +190,7 @@ void Omni3DManager::updateImageCoords() {
 		_imageCoords[k + 0] = (int)((2048.*65536.) - (_alpha - v19) * _helperValue);
 		_imageCoords[k + 1] = (int)((384.*65536.) - _squaresCoords[i][j] * v26);
 
-		k += (O3D_ROWSTRIDE - 2 * O3D_HALF_X - 2);
+		k += (_rowstride - 2 * _halfX - 2);
 	}
 
 	_dirtyCoords = false;
@@ -205,19 +212,19 @@ const Graphics::Surface *Omni3DManager::getSurface() {
 		const byte *src = (const byte *)_sourceSurface->getBasePtr(0, 0);
 
 		for (uint i = 0; i < O3D_TILES_Y; i++) {
-			for (uint j = 0; j < O3D_TILES_X; j++) {
+			for (uint j = 0; j < (uint)_tilesX; j++) {
 				int x1  = (_imageCoords[off + 2] - _imageCoords[off + 0]) >> 4;
 				int y1  = (_imageCoords[off + 3] - _imageCoords[off + 1]) >> 4;
-				int x1_ = (_imageCoords[off + O3D_ROWSTRIDE + 2] - _imageCoords[off + O3D_ROWSTRIDE + 0]) >> 4;
-				int y1_ = (_imageCoords[off + O3D_ROWSTRIDE + 3] - _imageCoords[off + O3D_ROWSTRIDE + 1]) >> 4;
+				int x1_ = (_imageCoords[off + _rowstride + 2] - _imageCoords[off + _rowstride + 0]) >> 4;
+				int y1_ = (_imageCoords[off + _rowstride + 3] - _imageCoords[off + _rowstride + 1]) >> 4;
 
 				int dx1 = (x1_ - x1) >> 10;
 				int dy1 = (y1_ - y1) >> 15;
 
 				y1 >>= 5;
 
-				int dx2  = (_imageCoords[off + O3D_ROWSTRIDE + 0] - _imageCoords[off + 0]) >> 4;
-				int dy2  = (_imageCoords[off + O3D_ROWSTRIDE + 1] - _imageCoords[off + 1]) >> 9;
+				int dx2  = (_imageCoords[off + _rowstride + 0] - _imageCoords[off + 0]) >> 4;
+				int dy2  = (_imageCoords[off + _rowstride + 1] - _imageCoords[off + 1]) >> 9;
 				int x2 = (((_imageCoords[off + 0] >> 0) * 2) + dx2) >> 1;
 				int y2 = (((_imageCoords[off + 1] >> 5) * 2) + dy2) >> 1;
 
@@ -233,17 +240,17 @@ const Graphics::Surface *Omni3DManager::getSurface() {
 						px += deltaX;
 						py += deltaY;
 					}
-					dst += O3D_W;
+					dst += _w;
 
 					x1 += dx1;
 					y1 += dy1;
 					x2 += dx2;
 					y2 += dy2;
 				}
-				dst -= 16 * O3D_W - 16;
+				dst -= 16 * _w - 16;
 				off += 2;
 			}
-			dst += 15 * O3D_W;
+			dst += 15 * _w;
 			off += 2;
 		}
 
@@ -270,16 +277,16 @@ Common::Point Omni3DManager::mapMouseCoords(const Common::Point &mouse) {
 	int smallX = mouse.x & 0xf, squareX = mouse.x >> 4;
 	int smallY = mouse.y & 0xf, squareY = mouse.y >> 4;
 
-	uint off = O3D_ROWSTRIDE * squareY + 2 * squareX;
+	uint off = _rowstride * squareY + 2 * squareX;
 
 	pt.x = ((_imageCoords[off + 2] +
-	         smallY * ((_imageCoords[off + O3D_ROWSTRIDE + 2] - _imageCoords[off + 2]) >> 4) +
-	         (smallX * smallY) * ((_imageCoords[off + O3D_ROWSTRIDE + 4] - _imageCoords[off + O3D_ROWSTRIDE + 2]) >> 8) +
+	         smallY * ((_imageCoords[off + _rowstride + 2] - _imageCoords[off + 2]) >> 4) +
+	         (smallX * smallY) * ((_imageCoords[off + _rowstride + 4] - _imageCoords[off + _rowstride + 2]) >> 8) +
 	         (smallX * (16 - smallY)) * ((_imageCoords[off + 4] - _imageCoords[off + 2]) >> 8))
 	        & 0x07ff0000) >> 16;
 	pt.y = (_imageCoords[off + 3] +
-	        smallY * ((_imageCoords[off + O3D_ROWSTRIDE + 3] - _imageCoords[off + 3]) >> 4) +
-	        (smallX * smallY) * ((_imageCoords[off + O3D_ROWSTRIDE + 5] - _imageCoords[off + O3D_ROWSTRIDE + 3]) >> 8) +
+	        smallY * ((_imageCoords[off + _rowstride + 3] - _imageCoords[off + 3]) >> 4) +
+	        (smallX * smallY) * ((_imageCoords[off + _rowstride + 5] - _imageCoords[off + _rowstride + 3]) >> 8) +
 	        (smallX * (16 - smallY)) * ((_imageCoords[off + 5] - _imageCoords[off + 3]) >> 8)) >> 16;
 
 	return pt;
