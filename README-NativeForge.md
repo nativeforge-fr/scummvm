@@ -44,6 +44,27 @@ Around 1,200 lines across ~24 files:
 
 Full detail is in the `versailles-fork` branch history (one commit per change).
 
+## Why this instead of ScummVM?
+
+ScummVM already runs Versailles through its cryomni3d engine — and, to be clear,
+**neither ScummVM nor this build is an emulator**: both run the game as native code
+that reads your original data. This project is a *specialized, packaged edition* of
+that engine, for people who just want to play this one game with no setup:
+
+- **One-click, zero-config**: a single installer reads your CD/ISO and sets everything
+  up as a standalone "Versailles" app — no ScummVM install, no adding games, no
+  locating data files.
+- **16:9 widescreen** with adaptive letterbox bars — *not available in stock ScummVM*.
+- **In-game language switching** (FR/EN/DE/ZH) with separate voice & text — *not
+  available in stock ScummVM*.
+- **Defaults tuned for this game**: fullscreen, smooth upscaling, a game-specific
+  gamepad keymap, persistent settings.
+
+Everything the engine itself already does is thanks to the ScummVM team. If you want a
+cross-platform, multi-game, actively maintained solution, use ScummVM. If you want a
+ready-to-play native Windows edition of *Versailles 1685* with widescreen and in-game
+language switching, use this. Fixes from this fork may be contributed upstream.
+
 ## Building
 
 Standalone Windows build via MSYS2 / MinGW-w64, with the cryomni3d engine and the
@@ -107,6 +128,28 @@ Environ 1200 lignes sur ~24 fichiers :
 
 Le détail se lit dans l'historique de la branche `versailles-fork` (un commit par
 changement).
+
+## Pourquoi cette version plutôt que ScummVM ?
+
+ScummVM fait déjà tourner Versailles via son moteur cryomni3d — et, pour être clair,
+**ni ScummVM ni cette version ne sont de l'émulation** : les deux exécutent le jeu en
+code natif qui lit tes données d'origine. Ce projet est une *édition spécialisée et
+packagée* de ce moteur, pour ceux qui veulent juste jouer à ce jeu sans rien configurer :
+
+- **Un double-clic, zéro configuration** : un seul installeur lit ton CD/ISO et met tout
+  en place sous forme d'appli autonome « Versailles » — pas d'installation de ScummVM,
+  pas d'ajout de jeu, pas de fichiers à localiser.
+- **Écran large 16:9** avec barres letterbox adaptatives — *absent de ScummVM standard*.
+- **Bascule de langue en jeu** (FR/EN/DE/ZH), voix et textes séparés — *absent de
+  ScummVM standard*.
+- **Réglages taillés pour ce jeu** : plein écran, upscale lissé, keymap manette dédié,
+  persistance des réglages.
+
+Tout ce que le moteur fait déjà revient à l'équipe ScummVM. Si tu veux une solution
+multi-plateforme, multi-jeux et activement maintenue, utilise ScummVM. Si tu veux une
+édition native Windows de *Versailles 1685* prête à jouer, avec écran large et
+changement de langue en jeu, utilise celle-ci. Les correctifs de ce fork pourront être
+proposés en amont (upstream).
 
 ## Compiler
 
