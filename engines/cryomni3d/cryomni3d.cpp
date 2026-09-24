@@ -86,7 +86,14 @@ DATSeekableStream *CryOmni3DEngine::getStaticData(uint32 gameId, uint16 version)
 		return nullptr;
 	}
 
-	DATSeekableStream *gameStream = DATSeekableStream::getGame(datFile, gameId, version, getLanguage(),
+	// Use _currentLanguage (the chosen/effective TEXT language) rather than getLanguage()
+	// (the AdvancedDetector language). Our standalone game_data has no VERSAILL.EXE/PROGRAM.Z,
+	// so MD5 detection can't identify the language and getLanguage() is unreliable (it resolved
+	// to Brazilian for a French install). _currentLanguage is driven by the persisted choice /
+	// system default and is also what an in-game text-language switch updates, so the static
+	// data (.dat) follows the language actually shown. For Atlantis _currentLanguage never
+	// changes from the detected one, so this is a no-op there.
+	DATSeekableStream *gameStream = DATSeekableStream::getGame(datFile, gameId, version, _currentLanguage,
 	                                getPlatform());
 	if (!gameStream) {
 		delete datFile;

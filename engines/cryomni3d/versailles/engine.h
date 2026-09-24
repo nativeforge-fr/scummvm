@@ -303,10 +303,13 @@ private:
 	//        voices (DIAL), dubbed cinematics (SC_TRANS)
 	Common::FSNode _gamePath;
 	Common::Language _audioLanguage;
+	Common::Language _baseLanguage;               // TEXT language of the installed base data (probed from files)
+	Common::Language _baseAudioLanguage;          // VOICE language shipped with the base (= defaultAudioForText(base))
 	bool _widescreen;                             // true = 16:9 (864), false = 4:3 (640); read at startup
 	bool _qol;                                    // true = enhancements (16:9, filter/format menus); false = original 4:3
-	bool isLanguageAvailable(Common::Language lang) const;        // TEXT: FR base always; others need lang/<code>/text_datasv|text_install
-	bool isAudioLanguageAvailable(Common::Language lang) const;   // VOICE: FR base always; others need lang/<code>/audio_datasv
+	Common::Language detectBaseLanguage() const;                  // probe INSTALL/DATA/GTO/DIALOG1.<ext> -> base language
+	bool isLanguageAvailable(Common::Language lang) const;        // TEXT: base always; others need lang/<code>/text_datasv|text_install
+	bool isAudioLanguageAvailable(Common::Language lang) const;   // VOICE: base voice always; others need lang/<code>/audio_datasv
 	uint countAvailableLanguages() const;         // installed languages (base FR + overlays)
 	void applyLanguageOverlays();                 // mount text+audio overlays for the current pair
 	void reloadTextData();                        // reload every TEXT-language-dependent resource live

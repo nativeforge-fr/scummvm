@@ -58,6 +58,7 @@ const FixedImageConfiguration CryOmni3DEngine_Versailles::kFixedImageConfigurati
 CryOmni3DEngine_Versailles::CryOmni3DEngine_Versailles(OSystem *syst,
 		const CryOmni3DGameDescription *gamedesc) : CryOmni3DEngine(syst, gamedesc),
 	_audioLanguage(gamedesc->desc.language),
+	_baseLanguage(gamedesc->desc.language), _baseAudioLanguage(gamedesc->desc.language),
 	_mainPalette(nullptr), _cursorPalette(nullptr), _transparentPaletteMap(nullptr),
 	_transparentSrcStart(uint(-1)), _transparentSrcStop(uint(-1)), _transparentDstStart(uint(-1)),
 	_transparentDstStop(uint(-1)), _transparentNewStart(uint(-1)), _transparentNewStop(uint(-1)),
@@ -127,20 +128,41 @@ void CryOmni3DEngine_Versailles::initializePath(const Common::FSNode &gamePath) 
 Common::Error CryOmni3DEngine_Versailles::run() {
 	CryOmni3DEngine::run();
 
-	// Apply the persisted text and audio language choices (independent) before
-	// loading language-dependent data. The base game_data is French; other
-	// languages are mounted as overlays under lang/<code>/.
+	// Determine the installed BASE language from the files: our standalone game_data has no
+	// VERSAILL.EXE/PROGRAM.Z, so the AdvancedDetector can't identify the language and
+	// getLanguage() is unreliable (it resolved to Brazilian for a French install). The base
+	// ships one language's text at the root; probe it. Other languages are overlays (lang/<code>).
+	_baseLanguage = detectBaseLanguage();
+	if (_baseLanguage == Common::UNK_LANG) {
+		_baseLanguage = getLanguage();          // fall back to the detected language
+	}
+	if (_baseLanguage == Common::UNK_LANG) {
+		_baseLanguage = osDefaultLanguage();    // last resort: system language (never UNK)
+	}
+	_baseAudioLanguage = defaultAudioForText(_baseLanguage);
+
+	// TEXT language: default to the installed base. Honor a persisted choice ONLY if that
+	// language is actually installed (== base, or a text overlay exists), so a stale config
+	// (e.g. "fr" left over from another install) can never ask for files that aren't there.
+	Common::Language wantText = _baseLanguage;
 	if (ConfMan.hasKey("versailles_language")) {
-		setCurrentLanguage(parseLanguageCode(ConfMan.get("versailles_language"), getLanguage()));
-	} else {
-		// First launch: default to the system language, falling back to English.
-		setCurrentLanguage(osDefaultLanguage());
+		Common::Language cfg = parseLanguageCode(ConfMan.get("versailles_language"), _baseLanguage);
+		if (cfg == _baseLanguage || isLanguageAvailable(cfg)) {
+			wantText = cfg;
+		}
 	}
+	setCurrentLanguage(wantText);
+
+	// AUDIO language: default to the base voice track; honor a persisted choice only if installed.
+	Common::Language wantAudio = _baseAudioLanguage;
 	if (ConfMan.hasKey("versailles_audio_language")) {
-		_audioLanguage = parseLanguageCode(ConfMan.get("versailles_audio_language"), _audioLanguage);
-	} else {
-		_audioLanguage = defaultAudioForText(getLanguage());
+		Common::Language cfg = parseLanguageCode(ConfMan.get("versailles_audio_language"), _baseAudioLanguage);
+		if (cfg == _baseAudioLanguage || isAudioLanguageAvailable(cfg)) {
+			wantAudio = cfg;
+		}
 	}
+	_audioLanguage = wantAudio;
+
 	// Subtitles on by default unless already chosen otherwise.
 	if (!ConfMan.hasKey("subtitles", Common::ConfigManager::kApplicationDomain)) {
 		ConfMan.setBool("subtitles", true, Common::ConfigManager::kApplicationDomain);
@@ -576,7 +598,7 @@ void CryOmni3DEngine_Versailles::setupFonts() {
 
 #define ADD_FONT(f) fonts.push_back(getFilePath(kFileTypeFont, f))
 
-	if (getLanguage() == Common::ZH_TWN) {
+	if (_currentLanguage == Common::ZH_TWN) {
 		// Prefer a full Traditional Chinese TTF (FONTS_ZH.LST) for complete glyph
 		// coverage; fall back to the bundled tw*.CRF bitmap fonts if absent.
 		Common::Path zhLst = getFilePath(kFileTypeFont, "FONTS_ZH.LST");
@@ -598,11 +620,11 @@ void CryOmni3DEngine_Versailles::setupFonts() {
 
 		_fontManager.loadFonts(fonts, Common::kWindows950);
 		return;
-	} else if (getLanguage() == Common::JA_JPN || getLanguage() == Common::KO_KOR) {
+	} else if (_currentLanguage == Common::JA_JPN || _currentLanguage == Common::KO_KOR) {
 		// Japanese/Korean use bundled TrueType fonts listed in FONTS_JP/KR.LST.
 		// If the list/font is missing, fall through to the Latin set (loadTTFList
 		// would otherwise abort on a missing font).
-		const bool isJa = (getLanguage() == Common::JA_JPN);
+		const bool isJa = (_currentLanguage == Common::JA_JPN);
 		const char *lstName = isJa ? "FONTS_JP.LST" : "FONTS_KR.LST";
 		const Common::CodePage cp = isJa ? Common::kWindows932 : Common::kWindows949;
 		Common::Path lstPath = getFilePath(kFileTypeFont, lstName);
@@ -2149,12 +2171,35 @@ const char *CryOmni3DEngine_Versailles::languageLabel(Common::Language lang) {
 	}
 }
 
+Common::Language CryOmni3DEngine_Versailles::detectBaseLanguage() const {
+	// The installed base ships ONE language's dialog file at the root
+	// (INSTALL/DATA/GTO/DIALOG1.<ext>). Probe which one is present to learn the base language,
+	// independent of the (unreliable) AdvancedDetector. Overlays (lang/<code>) are mounted
+	// AFTER this, so only the base language's dialog file resolves here.
+	static const struct {
+		const char *name;
+		Common::Language lang;
+	} kProbe[] = {
+		{ "DIALOG1.GTO", Common::FR_FRA }, { "DIALOG1.GB",  Common::EN_ANY },
+		{ "DIALOG1.ALM", Common::DE_DEU }, { "DIALOG1.ITA", Common::IT_ITA },
+		{ "DIALOG1.SP",  Common::ES_ESP }, { "DIALOG1.BR",  Common::PT_BRA },
+		{ "DIALOG1.JP",  Common::JA_JPN }, { "DIALOG1.KR",  Common::KO_KOR },
+		{ "DIALOG1.TW",  Common::ZH_TWN }
+	};
+	for (uint i = 0; i < ARRAYSIZE(kProbe); i++) {
+		if (Common::File::exists(getFilePath(kFileTypeGTO, kProbe[i].name))) {
+			return kProbe[i].lang;
+		}
+	}
+	return Common::UNK_LANG;
+}
+
 bool CryOmni3DEngine_Versailles::isLanguageAvailable(Common::Language lang) const {
-	// TEXT availability: the base game_data is French; other TEXT languages need a
-	// text overlay (text_datasv / text_install). A language that only ships a voice
-	// track (audio_datasv, e.g. English installed as the Chinese edition's voice)
-	// must NOT appear in the TEXT menu -> do not test audio_datasv here.
-	if (lang == Common::FR_FRA) {
+	// TEXT availability: the base game_data ships ONE language (_baseLanguage); other TEXT
+	// languages need a text overlay (text_datasv / text_install). A language that only ships a
+	// voice track (audio_datasv, e.g. English installed as the Chinese edition's voice) must
+	// NOT appear in the TEXT menu -> do not test audio_datasv here.
+	if (lang == _baseLanguage) {
 		return true;
 	}
 	const char *code = languageCode(lang);
@@ -2167,9 +2212,9 @@ bool CryOmni3DEngine_Versailles::isLanguageAvailable(Common::Language lang) cons
 }
 
 bool CryOmni3DEngine_Versailles::isAudioLanguageAvailable(Common::Language lang) const {
-	// AUDIO availability: the base voice track is French; other VOICE languages need
-	// an audio overlay (lang/<code>/audio_datasv). Used for the voice-language menu.
-	if (lang == Common::FR_FRA) {
+	// AUDIO availability: the base ships one voice track (_baseAudioLanguage); other VOICE
+	// languages need an audio overlay (lang/<code>/audio_datasv). Used for the voice-language menu.
+	if (lang == _baseAudioLanguage) {
 		return true;
 	}
 	const char *code = languageCode(lang);
