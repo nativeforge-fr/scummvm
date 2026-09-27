@@ -1,3 +1,28 @@
+# Versailles 1685 — Native Windows Edition
+
+**A Native Forge project for modern Windows systems.**
+
+This repository contains the source code for the Native Forge edition of **Versailles 1685 (1996, Cryo Interactive)**, based on the ScummVM `cryomni3d` engine.
+
+The Native Forge release provides a streamlined native Windows experience while requiring users to supply their own original game data.
+
+**No original Versailles 1685 game assets are distributed with this project.**
+
+> **Project:** Versailles 1685 — Native Windows Edition  
+> **Developer:** Native Forge  
+> **Current release:** v1.0.0  
+> **Platform:** Windows 11  
+> **Default branch:** `versailles-fork`  
+> **License:** GPL-3.0
+
+## About this fork
+
+This project is based on ScummVM and its `cryomni3d` engine.
+
+Native Forge maintains this fork specifically for the native Windows edition of **Versailles 1685**. The original ScummVM project information and documentation are preserved below for attribution and upstream reference.
+
+---
+
 # [ScummVM README](https://www.scummvm.org/) · [![Translation status](https://translations.scummvm.org/widgets/scummvm/-/scummvm/svg-badge.svg)](https://translations.scummvm.org/engage/scummvm/?utm_source=widget) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md#pull-requests)
 
 ## About ScummVM
@@ -26,12 +51,9 @@ For the impatient among you, here is how to get ScummVM running in five simple s
 
 5. Select the game you want to play in the list, and press Start. To play a game next time, skip to step 5, unless you want to add more games.
 
->
 > Hint:
 >
 > To add multiple games in one go, click the small arrow on the 'Add game' button and choose 'Mass Add'. You are again asked to select a directory, only this time ScummVM will search through all subdirectories for supported games.
-
-
 
 ## Reporting a bug
 
@@ -73,8 +95,8 @@ Our extensive change log is available [here](NEWS.md).
 
 A massive thank you to the entire team for making the ScummVM project possible. See the credits [here](AUTHORS)!
 
------
+---
 
-> Good Luck and Happy Adventuring\!
-> The ScummVM team.
+> Good Luck and Happy Adventuring!  
+> The ScummVM team.  
 > <https://www.scummvm.org/>
