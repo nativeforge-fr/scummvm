@@ -1,13 +1,9 @@
 name: Native Forge — Android APK (template)
 
-# Phase 2a: build the standalone Versailles engine for Android (arm64-v8a) using
-# ScummVM's official buildbot toolchain image (NDK + prebuilt Android deps).
-# This run also dumps the container environment so the exact NDK/SDK/PREFIX paths
-# are known for the next iteration (native build -> gradle APK -> branding).
-#
-# The finished APK is meant to be a TEMPLATE: the Windows installer injects the
-# game data (extracted from the user's own ISO) into its assets and re-signs it.
-# No game data is shipped here.
+# Builds the Versailles engine (cryomni3d/versailles) for Android arm64-v8a in
+# ScummVM's official buildbot toolchain image, then packages the APK via Gradle.
+# This APK is the TEMPLATE the installer fills with game data. Build log mirrored
+# to the ci-logs branch (Actions logs need a token even on public repos).
 
 on:
   workflow_dispatch:
@@ -17,41 +13,58 @@ on:
       - '.github/workflows/nativeforge-android.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android:
-    name: Android arm64-v8a (cryomni3d/versailles)
+    name: Android APK (arm64-v8a)
     runs-on: ubuntu-latest
     container: scummvm/dockerized-toolchains:android
     steps:
-      - name: Discover container environment
-        run: |
-          echo "=== ENV ==="; env | sort
-          echo "=== tools ==="
-          for t in java clang++ aapt2 gradle make python3; do printf '%s: ' "$t"; command -v "$t" || echo '(absent)'; done
-          java -version 2>&1 | head -1 || true
-          echo "=== NDK/SDK ==="; echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"; echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          echo "=== setenv scripts in image ==="; find / -maxdepth 6 -iname '*setenv*' 2>/dev/null | head
-          echo "=== prebuilt android libs (freetype/sdl2 .pc) ==="; find / -maxdepth 8 -name 'sdl2.pc' -o -name 'freetype2.pc' 2>/dev/null | head
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure (android-arm64-v8a, cryomni3d/versailles, standalone)
-        continue-on-error: true
+      - name: Build engine + APK
+        id: build
         run: |
+          set +e
           git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
-          ./configure --host=android-arm64-v8a \
-            --disable-all-engines --enable-engine=cryomni3d,versailles \
-            --enable-release \
-          || { echo '=== tail config.log ==='; tail -n 60 config.log; exit 1; }
-          # Standalone (+ QoL) defines, as on Windows.
-          sed -i '/VERSAILLES_STANDALONE/d' config.mk
-          echo 'DEFINES += -DVERSAILLES_STANDALONE -DNDEBUG -DVERSAILLES_QOL' >> config.mk
+          {
+            echo "=== configure (android-arm64-v8a, cryomni3d/versailles) ==="
+            ./configure --host=android-arm64-v8a \
+              --disable-all-engines --enable-engine=cryomni3d,versailles \
+              --enable-release || { echo '--- config.log tail ---'; tail -n 50 config.log; exit 10; }
+            echo "=== make (native lib) ==="
+            make -j"$(nproc)" || exit 11
+            echo "=== make androiddebug (Gradle APK) ==="
+            make androiddebug || exit 12
+            echo "=== produced APK(s) ==="
+            find . -maxdepth 4 -name '*.apk' -exec ls -lh {} \;
+          } 2>&1 | tee /tmp/b.log
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Build native lib
-        continue-on-error: true
+      - name: Mirror build log to ci-logs branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          make -j"$(nproc)" 2>&1 | tail -n 40
-          echo "=== produced .so ==="; find . -maxdepth 3 -name 'lib*scummvm*.so' -o -name 'scummvm' -maxdepth 3 2>/dev/null | head
+          git config --global user.email "ci@nativeforge.local"
+          git config --global user.name "NF CI"
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          tmp="$(mktemp -d)"; cd "$tmp"
+          git clone --depth 1 --branch ci-logs "$url" r 2>/dev/null || { mkdir r; cd r; git init -q; git checkout -qb ci-logs; git remote add origin "$url"; cd ..; }
+          cp /tmp/b.log r/android-apk.log
+          cd r && git add -A && git commit -qm "android-apk $(date -u +%FT%TZ)" || true
+          git push -q -f origin ci-logs
+
+      - name: Fail if the build failed
+        if: steps.build.outputs.rc != '0'
+        run: exit 1
+
+      - name: Upload APK
+        if: steps.build.outputs.rc == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Versailles-Android-arm64-debug
+          path: '**/*.apk'
+          if-no-files-found: error
