@@ -1,0 +1,27 @@
+#!/bin/bash
+# Native Forge — AppRun for the standalone Versailles 1685 AppImage (aarch64).
+#
+# Two data locations matter and are kept separate:
+#   * ScummVM's OWN runtime data (GUI theme, gui-icons.dat, engine data) lives
+#     inside the AppImage at $APPDIR/usr/share/scummvm. The POSIX backend finds
+#     it automatically through the $APPDIR variable set by the AppImage runtime.
+#   * The GAME data (extracted from the user's own CD/ISO) lives in a folder
+#     named "game_data" placed NEXT TO the .AppImage file. We point the engine
+#     at it explicitly so launching from a handheld frontend (unpredictable CWD)
+#     still works. No game data is shipped inside the AppImage.
+set -u
+
+HERE="$(dirname "$(readlink -f "${0}")")"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH:-}"
+
+# Directory that physically contains the .AppImage (fallback: CWD).
+BASE="$(dirname "${APPIMAGE:-$0}")"
+BIN="${HERE}/usr/bin/versailles"
+
+if [ -d "${BASE}/game_data" ]; then
+	exec "${BIN}" --path="${BASE}/game_data" --auto-detect "$@"
+else
+	# No game_data next to the AppImage: fall back to the standalone default
+	# (looks for ./game_data) so the engine can still show its own guidance.
+	exec "${BIN}" "$@"
+fi

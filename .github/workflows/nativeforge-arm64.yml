@@ -1,0 +1,49 @@
+name: Native Forge — Linux aarch64 (AppImage)
+
+# Builds the standalone Versailles 1685 engine natively on a GitHub-hosted ARM64
+# runner (no cross-compilation) and packages a portable AppImage for ArmadaOS /
+# ROCKNIX-class handhelds, Raspberry Pi OS and generic aarch64 Linux.
+#
+# No game data is shipped: the player drops a "game_data" folder (extracted from
+# their own CD/ISO) next to the .AppImage.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ ports/android-arm64 ]
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: aarch64 AppImage (${{ matrix.variant }})
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [ qol, original ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libsdl2-dev libfreetype6-dev libpng-dev zlib1g-dev \
+            libogg-dev libvorbis-dev libflac-dev libmad0-dev \
+            libtheora-dev libfaad-dev libmpeg2-4-dev libgif-dev \
+            libjpeg-turbo8-dev libfribidi-dev \
+            wget file patchelf desktop-file-utils zsync squashfs-tools
+
+      - name: Build + package AppImage
+        run: bash dists/nativeforge/make-appimage.sh "${{ matrix.variant }}"
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: Versailles1685-NativeForge-${{ matrix.variant }}-aarch64
+          path: dist/*.AppImage
+          if-no-files-found: error

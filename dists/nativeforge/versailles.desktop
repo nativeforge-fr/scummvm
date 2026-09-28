@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Versailles 1685
+GenericName=Adventure game
+Comment=Versailles 1685 (Cryo, 1996) — native edition by Native Forge, no emulation
+Exec=versailles
+Icon=versailles
+Terminal=false
+Categories=Game;AdventureGame;
+Keywords=versailles;cryo;cryomni3d;scummvm;nativeforge;
