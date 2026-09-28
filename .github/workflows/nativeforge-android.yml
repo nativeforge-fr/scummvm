@@ -34,10 +34,8 @@ jobs:
             ./configure --host=android-arm64-v8a \
               --disable-all-engines --enable-engine=cryomni3d,versailles \
               --enable-release || { echo '--- config.log tail ---'; tail -n 50 config.log; exit 10; }
-            echo "=== make (native lib) ==="
+            echo "=== make (android host: builds native lib + Gradle APK) ==="
             make -j"$(nproc)" || exit 11
-            echo "=== make androiddebug (Gradle APK) ==="
-            make androiddebug || exit 12
             echo "=== produced APK(s) ==="
             find . -maxdepth 4 -name '*.apk' -exec ls -lh {} \;
           } 2>&1 | tee /tmp/b.log
