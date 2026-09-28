@@ -17,10 +17,15 @@ installers (Linux GUI, Android app) build on.
 - **Base extraction**: everything under `DATAS_V\` and `INSTALL\` (with
   `INSTALL\DATAS_V\` → `INSTALL\DATA\`) merged from one or more ISOs into
   `game_data`.
+- **Multi-language build** (`build`): a base language at the root plus any number
+  of overlay languages under `lang/<code>/`, each **diffed against the base**
+  (only differing files kept), with **shared-voice dedup** (e.g. Chinese/Korean
+  reuse the English voice track, extracted once) and **CJK font** deployment
+  (bundled Noto Sans CJK + rewritten `.LST`). Overlay sources may be CD editions
+  or a multilang **DVD** (`--prefix <FOLDER>`).
 
-Not yet ported from the Windows installer: language overlays, shared-voice audio
-dedup, CJK font setup, DVD per-language extraction. (Base extraction already
-yields a playable single-language install from an edition's CD 1 + CD 2.)
+Parity with the Windows installer's extraction pipeline, validated against real
+ISOs (fingerprints byte-identical; FR+EN+ZH and DVD Italian builds correct).
 
 ## Build
 ```

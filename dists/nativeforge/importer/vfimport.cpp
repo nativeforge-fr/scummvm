@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <algorithm>
 #include <fstream>
 #include <sys/stat.h>
@@ -268,6 +269,143 @@ static std::string detectType(Iso& iso){
 }
 
 // ---------------------------------------------------------------------------
+//  Multi-language overlays, shared-voice dedup and CJK fonts (mirrors
+//  lib_build.ps1: Build-Overlay / Setup-CjkFont / Rewrite-Lst).
+// ---------------------------------------------------------------------------
+// ISO subtree -> overlay subtree. audio_datasv\* is the VOICE track (deduped).
+static const std::pair<const char*,const char*> OVMAP[] = {
+  {"DATAS_V\\DIAL",       "audio_datasv\\dial"},
+  {"DATAS_V\\SC_TRANS",   "audio_datasv\\sc_trans"},
+  {"DATAS_V\\IMG_FIX",    "text_datasv\\img_fix"},
+  {"DATAS_V\\OBJETS",     "text_datasv\\objets"},
+  {"DATAS_V\\ANIMACTI",   "text_datasv\\animacti"},
+  {"DATAS_V\\MENU",       "text_datasv\\menu"},
+  {"DATAS_V\\FONTS",      "text_datasv\\fonts"},
+  {"INSTALL\\DATA\\TEXTES","text_install\\textes"},
+  {"INSTALL\\DATA\\GTO",  "text_install\\gto"},
+  {"INSTALL\\DATA\\FONTS","text_install\\fonts"},
+};
+// CJK editions reuse another voice track (no native dub): ja->fr, ko/zh->en.
+static std::string audioLang(const std::string& c){
+  if(c=="ja") return "fr";
+  if(c=="ko"||c=="zh") return "en";
+  return c;
+}
+struct CjkInfo{ const char* otf; const char* face; const char* lst; };
+static bool cjkInfo(const std::string& c, CjkInfo& o){
+  if(c=="ja"){o={"NotoSansCJKjp-Regular.otf","Noto Sans CJK JP","FONTS_JP.LST"};return true;}
+  if(c=="ko"){o={"NotoSansCJKkr-Regular.otf","Noto Sans CJK KR","FONTS_KR.LST"};return true;}
+  if(c=="zh"){o={"NotoSansCJKtc-Regular.otf","Noto Sans CJK TC","FONTS_ZH.LST"};return true;}
+  return false;
+}
+static const int CJK_SIZES[11]={13,18,13,12,12,12,12,12,12,12,12};
+
+static std::string toFs(std::string s){ for(char&c:s) if(c=='\\') c='/'; return s; }
+static bool fileExists(const std::string& p){ struct stat st; return stat(p.c_str(),&st)==0 && !(st.st_mode & S_IFDIR); }
+static bool readDiskFile(const std::string& path, std::vector<uint8_t>& out){
+  std::ifstream f(path, std::ios::binary); if(!f) return false;
+  f.seekg(0,std::ios::end); std::streamoff n=f.tellg(); f.seekg(0);
+  if(n<0) return false;
+  out.resize((size_t)n);
+  if(n>0) f.read((char*)out.data(), n);
+  return true;
+}
+// Strip a DVD language prefix ("FRANCE\") from an internal path; false if absent.
+static bool stripPrefix(const std::string& path, const std::string& pfxUpperBs, std::string& rel){
+  if(pfxUpperBs.empty()){ rel=path; return true; }
+  if(!startsWith(path, pfxUpperBs)) return false;
+  rel = path.substr(pfxUpperBs.size()); return true;
+}
+
+// Base = everything under DATAS_V\ and INSTALL\ (INSTALL\DATAS_V -> INSTALL\DATA).
+static void extractBase(Iso& iso, const std::string& prefix, const std::string& gd,
+                        size_t& total, size_t& written){
+  std::string pfx = prefix.empty()? "" : upper(prefix)+"\\";
+  for(const auto& e:iso.entries()){
+    if(e.isDir) continue;
+    std::string rel; if(!stripPrefix(e.path, pfx, rel)) continue;
+    if(!startsWith(rel,"DATAS_V\\") && !startsWith(rel,"INSTALL\\")) continue;
+    rel = normalizeInstall(rel);
+    std::vector<uint8_t> data; if(!iso.readFile(e.path,data)) continue;
+    total++; if(writeFile(gd+"/"+toFs(rel), data)) written++;
+  }
+}
+
+static bool matchOv(const std::string& rel, std::string& ovRel, bool& isAudio){
+  for(auto& m:OVMAP){
+    std::string key=m.first;
+    if(startsWith(rel, key+"\\")){
+      ovRel = std::string(m.second) + rel.substr(key.size()); // keeps leading backslash
+      isAudio = startsWith(ovRel, "audio_datasv\\");
+      return true;
+    }
+  }
+  return false;
+}
+
+// Overlay for a non-base language: keep only files that DIFFER from the base.
+static void extractOverlay(Iso& iso, const std::string& prefix, const std::string& code,
+                           const std::string& gd, bool skipAudio, size_t& kept, size_t& same){
+  std::string pfx = prefix.empty()? "" : upper(prefix)+"\\";
+  std::string textRoot = gd+"/lang/"+code;
+  std::string audioRoot= gd+"/lang/"+audioLang(code);
+  for(const auto& e:iso.entries()){
+    if(e.isDir) continue;
+    std::string rel; if(!stripPrefix(e.path, pfx, rel)) continue;
+    rel = normalizeInstall(rel);
+    std::string ovRel; bool isAudio=false;
+    if(!matchOv(rel, ovRel, isAudio)) continue;
+    if(isAudio && skipAudio) continue;
+    std::vector<uint8_t> data; if(!iso.readFile(e.path,data)) continue;
+    std::string basePath = gd+"/"+toFs(rel);
+    std::vector<uint8_t> bd;
+    if(fileExists(basePath) && readDiskFile(basePath,bd) && bd.size()==data.size() && bd==data){ same++; continue; }
+    std::string dst = (isAudio?audioRoot:textRoot) + "/" + toFs(ovRel);
+    if(writeFile(dst,data)) kept++;
+  }
+}
+
+static void writeLstDefault(const std::string& dst, const std::string& face, const std::string& otf){
+  std::string s = "11\r\n";
+  for(int i=0;i<11;i++) s += face+"#"+otf+"#"+std::to_string(CJK_SIZES[i])+"\r\n";
+  writeFile(dst, std::vector<uint8_t>(s.begin(), s.end()));
+}
+static void rewriteLst(const std::string& src, const std::string& dst, const std::string& face, const std::string& otf){
+  std::vector<uint8_t> raw; if(!readDiskFile(src,raw)){ writeLstDefault(dst,face,otf); return; }
+  std::vector<std::string> lines; std::string cur;
+  for(uint8_t ch:raw){ if(ch=='\r')continue; if(ch=='\n'){lines.push_back(cur);cur.clear();} else cur+=(char)ch; }
+  if(!cur.empty()) lines.push_back(cur);
+  int count = lines.empty()? 0 : atoi(lines[0].c_str());
+  if(count > (int)lines.size()-1) count=(int)lines.size()-1;
+  std::string out = (lines.empty()? std::string("0") : lines[0]) + "\r\n";
+  for(int i=1;i<=count && i<(int)lines.size();i++){
+    if(lines[i].empty()) continue;
+    std::vector<std::string> f; std::string t;
+    for(char ch:lines[i]){ if(ch=='#'){f.push_back(t);t.clear();} else t+=ch; } f.push_back(t);
+    std::string sz = (f.size()>=3)? f[2] : std::to_string(CJK_SIZES[0]);
+    out += face+"#"+otf+"#"+sz+"\r\n";
+  }
+  writeFile(dst, std::vector<uint8_t>(out.begin(), out.end()));
+}
+// Deploy the bundled Noto CJK font + .LST for a CJK language (base or overlay).
+static void setupCjkFont(const std::string& gd, const std::string& code, const std::string& fontsDir, bool asBase){
+  CjkInfo ci; if(!cjkInfo(code,ci)) return;
+  std::string src = fontsDir+"/"+ci.otf;
+  if(!fileExists(src)){ fprintf(stderr,"CJK font missing: %s\n", src.c_str()); return; }
+  std::string fontsOut, lstInstall;
+  if(asBase){ fontsOut = gd+"/DATAS_V/FONTS"; lstInstall = gd+"/INSTALL/DATA/FONTS/"+ci.lst; }
+  else { std::string lr=gd+"/lang/"+code; fontsOut=lr+"/text_datasv/fonts"; lstInstall=lr+"/text_install/fonts/"+ci.lst; }
+  std::vector<uint8_t> fd; if(readDiskFile(src,fd)) writeFile(fontsOut+"/"+ci.otf, fd);
+  std::string lstDst = fontsOut+"/"+ci.lst;
+  std::string existing;
+  if(fileExists(lstDst)) existing=lstDst; else if(fileExists(lstInstall)) existing=lstInstall;
+  if(!existing.empty()) rewriteLst(existing, lstDst, ci.face, ci.otf);
+  else                  writeLstDefault(lstDst, ci.face, ci.otf);
+  if(fileExists(lstInstall)) remove(lstInstall.c_str());
+  fprintf(stderr,"CJK font %s: %s (family '%s')%s\n", code.c_str(), ci.otf, ci.face, asBase?" [base]":"");
+}
+
+// ---------------------------------------------------------------------------
 int main(int argc, char** argv){
   if(argc<3){
     fprintf(stderr,
@@ -275,7 +413,10 @@ int main(int argc, char** argv){
       "  vfimport fingerprint <iso> [dvd-prefix]\n"
       "  vfimport type        <iso>\n"
       "  vfimport list        <iso> [prefix]\n"
-      "  vfimport extract     <out_game_data_dir> <iso> [<iso2> ...]\n");
+      "  vfimport extract     <out_game_data_dir> <iso> [<iso2> ...]\n"
+      "  vfimport build       <game_data> [--fonts <dir>]\n"
+      "                       --base <lang> [--prefix <DVDFOLDER>] <iso>...\n"
+      "                       [--lang <code> [--prefix <DVDFOLDER>] <iso>...] ...\n");
     return 2;
   }
   std::string cmd=argv[1];
@@ -328,6 +469,46 @@ int main(int argc, char** argv){
     }
     fprintf(stderr,"extracted %zu/%zu files into %s\n", written, total, gd.c_str());
     return (written>0)?0:1;
+  }
+  if(cmd=="build"){
+    // vfimport build <game_data> [--fonts <dir>]
+    //   --base <lang> [--prefix <DVDFOLDER>] <iso>...
+    //   [--lang <code> [--prefix <DVDFOLDER>] <iso>...] ...
+    if(argc<4){ fprintf(stderr,"build needs <game_data> --base <lang> <iso>...\n"); return 2; }
+    std::string gd=argv[2], fontsDir;
+    struct Spec{ bool isBase=false; std::string code, prefix; std::vector<std::string> isos; };
+    std::vector<Spec> specs; Spec* cur=nullptr;
+    for(int i=3;i<argc;i++){
+      std::string a=argv[i];
+      if(a=="--fonts"){ if(i+1<argc) fontsDir=argv[++i]; continue; }
+      if(a=="--base"||a=="--lang"){ specs.push_back(Spec{}); cur=&specs.back(); cur->isBase=(a=="--base"); if(i+1<argc) cur->code=argv[++i]; continue; }
+      if(a=="--prefix"){ if(cur && i+1<argc) cur->prefix=argv[++i]; continue; }
+      if(cur) cur->isos.push_back(a);
+    }
+    std::string baseLang;
+    for(auto&s:specs) if(s.isBase) baseLang=s.code;
+    if(baseLang.empty()){ fprintf(stderr,"build: no --base <lang> given\n"); return 2; }
+    // 1) Base (root) for the base language.
+    size_t bt=0,bw=0;
+    for(auto&s:specs) if(s.isBase){
+      for(auto&iso:s.isos){ Iso it; if(!it.open(iso)){ fprintf(stderr,"skip (cannot open): %s\n",iso.c_str()); continue; } extractBase(it,s.prefix,gd,bt,bw); }
+      if(!fontsDir.empty()) setupCjkFont(gd, s.code, fontsDir, true);
+    }
+    fprintf(stderr,"base %s: %zu files written\n", baseLang.c_str(), bw);
+    // 2) Overlays for additional languages, with shared-voice dedup.
+    std::set<std::string> audioDone;
+    for(auto&s:specs){
+      if(s.isBase) continue;
+      std::string self=audioLang(s.code), baseA=audioLang(baseLang);
+      bool skipAudio = (self==baseA) || (audioDone.count(self)>0);
+      if(!skipAudio) audioDone.insert(self);
+      size_t kept=0,same=0;
+      for(auto&iso:s.isos){ Iso it; if(!it.open(iso)){ fprintf(stderr,"skip (cannot open): %s\n",iso.c_str()); continue; } extractOverlay(it,s.prefix,s.code,gd,skipAudio,kept,same); }
+      if(!fontsDir.empty()) setupCjkFont(gd, s.code, fontsDir, false);
+      fprintf(stderr,"lang %s: kept %zu, identical-skipped %zu, voice=%s\n", s.code.c_str(), kept, same, skipAudio?"shared(skipped)":"included");
+    }
+    fprintf(stderr,"build done -> %s\n", gd.c_str());
+    return (bw>0)?0:1;
   }
   fprintf(stderr,"unknown command: %s\n", cmd.c_str());
   return 2;
