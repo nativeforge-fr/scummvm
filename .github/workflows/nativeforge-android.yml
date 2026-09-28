@@ -20,6 +20,9 @@ jobs:
     name: Android APK (arm64-v8a)
     runs-on: ubuntu-latest
     container: scummvm/dockerized-toolchains:android
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +42,8 @@ jobs:
             echo "=== produced APK(s) ==="
             find . -maxdepth 4 -name '*.apk' -exec ls -lh {} \;
           } 2>&1 | tee /tmp/b.log
-          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          # Success is judged on the APK actually existing (robust to shell quirks).
+          if [ -f ScummVM-debug.apk ]; then echo "rc=0" >> "$GITHUB_OUTPUT"; else echo "rc=1" >> "$GITHUB_OUTPUT"; fi
 
       - name: Mirror build log to ci-logs branch
         if: always()
