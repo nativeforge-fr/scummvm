@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Versailles 1685 — Installateur
+GenericName=Game installer
+Comment=Install Versailles 1685 from your own CD/ISO (Native Forge)
+Exec=versailles-installer
+Icon=versailles-installer
+Terminal=false
+Categories=Game;Utility;

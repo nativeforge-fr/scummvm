@@ -1,0 +1,72 @@
+name: Native Forge — Linux installer (Qt AppImage)
+
+# Builds the Qt6 Versailles installer for aarch64 (ArmadaOS / handhelds) and
+# packages it as an AppImage bundling the installer GUI + the vfimport core.
+# The build log is mirrored to the `ci-logs` branch so it can be inspected
+# without a token (Actions logs require auth even on public repos).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ ports/android-arm64 ]
+    paths:
+      - '.github/workflows/nativeforge-installer-linux.yml'
+      - 'dists/nativeforge/installer-linux/**'
+      - 'dists/nativeforge/importer/**'
+
+permissions:
+  contents: write   # to mirror the build log to the ci-logs branch
+
+jobs:
+  installer:
+    name: Linux installer (aarch64)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev \
+            wget file patchelf desktop-file-utils zsync squashfs-tools \
+            libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0
+
+      - name: Build + package installer AppImage
+        id: build
+        run: |
+          set +e
+          bash dists/nativeforge/installer-linux/make-appimage.sh 2>&1 | tee /tmp/build.log
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Mirror build log to ci-logs branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.email "ci@nativeforge.local"
+          git config --global user.name "NF CI"
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          tmp="$(mktemp -d)"; cd "$tmp"
+          if git clone --depth 1 --branch ci-logs "$url" r 2>/dev/null; then :; else
+            mkdir r; cd r; git init -q; git checkout -qb ci-logs
+            git remote add origin "$url"; cd ..
+          fi
+          cp /tmp/build.log r/installer-linux.log
+          cd r
+          git add -A
+          git commit -qm "installer-linux log $(date -u +%FT%TZ)" || true
+          git push -q -f origin ci-logs
+
+      - name: Fail if the build failed
+        if: steps.build.outputs.rc != '0'
+        run: exit "${{ steps.build.outputs.rc }}"
+
+      - name: Upload installer AppImage
+        if: steps.build.outputs.rc == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Versailles1685-Installer-aarch64
+          path: dist/*.AppImage
+          if-no-files-found: error
