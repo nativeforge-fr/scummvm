@@ -16,7 +16,7 @@ on:
       - 'dists/nativeforge/importer/**'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   android:
@@ -61,20 +61,6 @@ jobs:
           } 2>&1 | tee /tmp/b.log
           # Success is judged on the APK actually existing (robust to shell quirks).
           if [ -f ScummVM-debug.apk ]; then echo "rc=0" >> "$GITHUB_OUTPUT"; else echo "rc=1" >> "$GITHUB_OUTPUT"; fi
-
-      - name: Mirror build log to ci-logs branch
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git config --global user.email "ci@nativeforge.local"
-          git config --global user.name "NF CI"
-          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          tmp="$(mktemp -d)"; cd "$tmp"
-          git clone --depth 1 --branch ci-logs "$url" r 2>/dev/null || { mkdir r; cd r; git init -q; git checkout -qb ci-logs; git remote add origin "$url"; cd ..; }
-          cp /tmp/b.log r/android-apk.log
-          cd r && git add -A && git commit -qm "android-apk $(date -u +%FT%TZ)" || true
-          git push -q -f origin ci-logs
 
       - name: Fail if the build failed
         if: steps.build.outputs.rc != '0'

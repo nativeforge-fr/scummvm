@@ -16,7 +16,7 @@ on:
       - 'dists/nativeforge/fonts_cjk/**'
 
 permissions:
-  contents: write   # to mirror the build log to the ci-logs branch
+  contents: read
 
 jobs:
   installer:
@@ -40,25 +40,6 @@ jobs:
           set +e
           bash dists/nativeforge/installer-linux/make-appimage.sh 2>&1 | tee /tmp/build.log
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-
-      - name: Mirror build log to ci-logs branch
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git config --global user.email "ci@nativeforge.local"
-          git config --global user.name "NF CI"
-          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          tmp="$(mktemp -d)"; cd "$tmp"
-          if git clone --depth 1 --branch ci-logs "$url" r 2>/dev/null; then :; else
-            mkdir r; cd r; git init -q; git checkout -qb ci-logs
-            git remote add origin "$url"; cd ..
-          fi
-          cp /tmp/build.log r/installer-linux.log
-          cd r
-          git add -A
-          git commit -qm "installer-linux log $(date -u +%FT%TZ)" || true
-          git push -q -f origin ci-logs
 
       - name: Fail if the build failed
         if: steps.build.outputs.rc != '0'
