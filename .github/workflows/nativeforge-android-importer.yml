@@ -1,0 +1,77 @@
+name: Native Forge — vfimport (Android ABIs)
+
+# Cross-compiles the portable extraction core for Android (all ABIs) with the
+# runner's NDK. Proves the core builds for Android and produces the binaries the
+# Android installer app will call. Build log mirrored to the ci-logs branch.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ ports/android-arm64 ]
+    paths:
+      - '.github/workflows/nativeforge-android-importer.yml'
+      - 'dists/nativeforge/importer/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: vfimport ${{ matrix.abi }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            triple: aarch64-linux-android21
+          - abi: armeabi-v7a
+            triple: armv7a-linux-androideabi21
+          - abi: x86_64
+            triple: x86_64-linux-android21
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile vfimport (${{ matrix.abi }})
+        id: build
+        run: |
+          set +e
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_ROOT:-$ANDROID_NDK_HOME}}"
+          CXX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/${{ matrix.triple }}-clang++"
+          {
+            echo "NDK=$NDK"
+            echo "CXX=$CXX"
+            ls -l "$CXX" || echo "compiler not found"
+            "$CXX" -std=c++17 -O2 -fPIC \
+              -o "vfimport-${{ matrix.abi }}" dists/nativeforge/importer/vfimport.cpp
+            echo "compile rc=$?"
+            file "vfimport-${{ matrix.abi }}" || true
+          } 2>&1 | tee /tmp/b.log
+          grep -q "compile rc=0" /tmp/b.log && echo "rc=0" >> "$GITHUB_OUTPUT" || echo "rc=1" >> "$GITHUB_OUTPUT"
+
+      - name: Mirror build log to ci-logs branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.email "ci@nativeforge.local"
+          git config --global user.name "NF CI"
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          tmp="$(mktemp -d)"; cd "$tmp"
+          git clone --depth 1 --branch ci-logs "$url" r 2>/dev/null || { mkdir r; cd r; git init -q; git checkout -qb ci-logs; git remote add origin "$url"; cd ..; }
+          cp /tmp/b.log "r/android-importer-${{ matrix.abi }}.log"
+          cd r && git add -A && git commit -qm "android-importer ${{ matrix.abi }} $(date -u +%FT%TZ)" || true
+          git push -q -f origin ci-logs
+
+      - name: Fail if the build failed
+        if: steps.build.outputs.rc != '0'
+        run: exit 1
+
+      - name: Upload vfimport binary
+        if: steps.build.outputs.rc == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vfimport-android-${{ matrix.abi }}
+          path: vfimport-${{ matrix.abi }}
+          if-no-files-found: error
