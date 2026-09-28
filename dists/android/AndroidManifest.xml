@@ -62,6 +62,7 @@
 	<application
 		android:allowBackup="true"
 		android:appCategory="game"
+		android:extractNativeLibs="true"
 		android:description="@string/app_desc"
 		android:enableOnBackInvokedCallback="@bool/enableOnBackInvokedCallback"
 		android:icon="@mipmap/scummvm"

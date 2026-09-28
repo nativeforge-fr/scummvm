@@ -39,6 +39,20 @@ jobs:
               --enable-release || { echo '--- config.log tail ---'; tail -n 50 config.log; exit 10; }
             echo "=== make (android host: builds native lib + Gradle APK) ==="
             make -j"$(nproc)" || exit 11
+            echo "=== compile + bundle vfimport as libvfimport.so ==="
+            NDK="${ANDROID_NDK_ROOT:-${ANDROID_NDK_HOME:-}}"
+            CXX="$(ls "$NDK"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android*-clang++ 2>/dev/null | sort -V | head -1)"
+            [ -z "$CXX" ] && CXX="$(grep -m1 -E '^CXX' config.mk | sed -E 's/^CXX *:?= *//')"
+            echo "vfimport CXX=$CXX"
+            "$CXX" -std=c++17 -O2 -fPIC \
+              -o android_project/lib/arm64-v8a/libvfimport.so \
+              dists/nativeforge/importer/vfimport.cpp || exit 20
+            ls -l android_project/lib/arm64-v8a/
+            echo "=== repackage APK with vfimport included ==="
+            ( cd android_project && ./gradlew assembleDebug ) || exit 21
+            cp android_project/build/outputs/apk/debug/ScummVM-debug.apk ScummVM-debug.apk
+            echo "=== check libvfimport.so is packaged ==="
+            unzip -l ScummVM-debug.apk | grep -i vfimport || echo "WARNING: vfimport missing from APK"
             echo "=== produced APK(s) ==="
             find . -maxdepth 4 -name '*.apk' -exec ls -lh {} \;
           } 2>&1 | tee /tmp/b.log
