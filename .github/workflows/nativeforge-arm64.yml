@@ -11,6 +11,9 @@ on:
   workflow_dispatch:
   push:
     branches: [ ports/android-arm64 ]
+    paths:
+      - '.github/workflows/nativeforge-arm64.yml'
+      - 'dists/nativeforge/**'
 
 permissions:
   contents: read
