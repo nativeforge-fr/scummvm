@@ -50,3 +50,24 @@ jobs:
           name: Versailles1685-NativeForge-${{ matrix.variant }}-aarch64
           path: dist/*.AppImage
           if-no-files-found: error
+
+  importer:
+    name: vfimport core (aarch64)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install compiler
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends g++ file
+      - name: Build vfimport (portable extraction core)
+        run: |
+          cd dists/nativeforge/importer
+          make
+          file vfimport
+          ./vfimport 2>&1 | head -6 || true   # prints its usage (arch sanity)
+      - name: Upload vfimport
+        uses: actions/upload-artifact@v4
+        with:
+          name: vfimport-aarch64
+          path: dists/nativeforge/importer/vfimport
+          if-no-files-found: error
