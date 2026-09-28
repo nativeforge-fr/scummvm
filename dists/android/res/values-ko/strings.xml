@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="app_name">ScummVM</string>
-  <string name="app_name_debug">ScummVM (디버그)</string>
+  <string name="app_name">Versailles 1685</string>
+  <string name="app_name_debug">Versailles 1685</string>
   <string name="app_desc">그래픽 고급 게임 엔진</string>
   <string name="quit">종료</string>
   <string name="no_log_file_title">로그 파일 오류</string>

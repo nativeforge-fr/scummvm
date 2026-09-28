@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="app_name">ScummVM</string>
+  <string name="app_name">Versailles 1685</string>
   <string name="app_desc">מנוע משחק הרפתקה גרפי</string>
   <string name="quit">יציאה</string>
   <string name="no_config_file_title">שגיאת קובץ תצורה</string>

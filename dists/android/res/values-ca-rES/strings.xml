@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="app_name">ScummVM</string>
-  <string name="app_name_debug">ScummVM (depurar)</string>
+  <string name="app_name">Versailles 1685</string>
+  <string name="app_name_debug">Versailles 1685</string>
   <string name="app_desc">Motor de jocs d\'aventura gràfica</string>
   <string name="quit">Surt</string>
   <string name="no_log_file_title">Error en el fitxer de registre</string>

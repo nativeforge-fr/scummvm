@@ -24,7 +24,9 @@ android {
     enableKotlin = false
 
     defaultConfig {
-        applicationId "org.scummvm.scummvm"
+        // Native Forge: brand the installed package (namespace/code package stays
+        // org.scummvm.scummvm so the JNI symbols and R class are unchanged).
+        applicationId "fr.nativeforge.versailles"
 
         minSdkVersion 16
 
