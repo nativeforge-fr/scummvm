@@ -1225,7 +1225,17 @@ public class ScummVMActivity extends Activity {
 		// Start ScummVM
 		final Uri intentData = getIntent().getData();
 		String[] args;
-		if (intentData == null) {
+		// Native Forge: when a standalone game_data folder has been imported into
+		// the app storage, boot it directly (auto-detect Versailles from it)
+		// instead of showing the launcher.
+		java.io.File nfGameData = new java.io.File(getExternalFilesDir(null), "game_data");
+		if (intentData == null && new java.io.File(nfGameData, "DATAS_V").isDirectory()) {
+			args = new String[]{
+				"ScummVM",
+				"--path=" + nfGameData.getAbsolutePath(),
+				"--auto-detect"
+			};
+		} else if (intentData == null) {
 			args = new String[]{
 				"ScummVM"
 			};

@@ -11,6 +11,9 @@ on:
     branches: [ versailles-fork ]
     paths:
       - '.github/workflows/nativeforge-android.yml'
+      - 'dists/android/**'
+      - 'backends/platform/android/**'
+      - 'dists/nativeforge/importer/**'
 
 permissions:
   contents: write
