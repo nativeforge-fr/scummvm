@@ -250,6 +250,23 @@ static bool writeFile(const std::string& path, const std::vector<uint8_t>& data)
   return (bool)o;
 }
 
+// Language of a CD 1 edition, from the extension of its "tous_doc" file
+// (mirrors lib_pipeline TextExtToLang). Empty if not identifiable.
+static std::string editionLang(Iso& iso){
+  static const std::pair<const char*,const char*> M[] = {
+    {".TXT","fr"},{".GB","en"},{".ALM","de"},{".SP","es"},{".ITA","it"},
+    {".BR","br"},{".JP","ja"},{".KR","ko"},{".TW","zh"}};
+  for(const auto& e:iso.entries()){
+    std::string u=upper(e.path);
+    size_t p=u.rfind("TOUS_DOC.");
+    if(p!=std::string::npos){
+      std::string ext=u.substr(p+8); // ".XYZ"
+      for(auto& m:M) if(ext==m.first) return m.second;
+    }
+  }
+  return "";
+}
+
 // Detect disc type by top-level directories (edition CD1 / data CD2 / multilang DVD).
 static std::string detectType(Iso& iso){
   static const std::pair<const char*,const char*> DVD[8]={
@@ -264,7 +281,7 @@ static std::string detectType(Iso& iso){
   std::vector<std::string> langs;
   for(auto& d:DVD) if(top.count(d.first)) langs.push_back(d.second);
   if(langs.size()>=2){ std::string s="multilang"; for(auto&l:langs) s+=" "+l; return s; }
-  if(hasInstall) return "edition";
+  if(hasInstall){ std::string l=editionLang(iso); return "edition "+(l.empty()?std::string("?"):l); }
   return "data";
 }
 
