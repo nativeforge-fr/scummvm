@@ -27,6 +27,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <sstream>
 #include <algorithm>
 #include <fstream>
 #include <sys/stat.h>
@@ -431,6 +432,7 @@ int main(int argc, char** argv){
       "  vfimport type        <iso>\n"
       "  vfimport list        <iso> [prefix]\n"
       "  vfimport extract     <out_game_data_dir> <iso> [<iso2> ...]\n"
+      "  vfimport plan        <iso> [<iso2> ...]\n"
       "  vfimport build       <game_data> [--fonts <dir>]\n"
       "                       --base <lang> [--prefix <DVDFOLDER>] <iso>...\n"
       "                       [--lang <code> [--prefix <DVDFOLDER>] <iso>...] ...\n");
@@ -486,6 +488,60 @@ int main(int argc, char** argv){
     }
     fprintf(stderr,"extracted %zu/%zu files into %s\n", written, total, gd.c_str());
     return (written>0)?0:1;
+  }
+  if(cmd=="plan"){
+    // vfimport plan <iso...>  -> group discs into installable languages.
+    // Output (tab-separated, one line per language found):
+    //   LANG <code> <complete:0|1> <source-spec>
+    // where source-spec is  cd1=<path>;cd2=<path>   or   dvd=<path>;prefix=<FOLDER>
+    // Reference fingerprints (identify a CD 2 isolated from its CD 1).
+    static const std::map<std::string,std::string> KNOWN = {
+      {"684494795BC7CAD2B82C4D4E27EF2D9F3A90D80804439DE325CA622827E6A408EDF611AA2E0425FC2E7447A89A628E0C8F126D963D34555A","fr"},
+      {"80760A8E683F4859D7D12F74006E6061C6CD06909994A432F1DA3A44BA7CE89D81FA40BEF6D25213FA7C6E09D9078DBDBD4E49CB3B9639AC","de"},
+      {"7627E91884BBE769F871FA0692A96616840DA52E906554F67293D7B881D3458D10FBE16CF95C1C371A4335B687BBC4F5213AC8A92E169942","en"},
+      {"7627E91884BBE769C9EB87EC47D3C2E4D034D345906554F6039C157C81D3458D10FBE16CF95C1C371A4335B687BBC4F5213AC8A9D096D0F5","zh"},
+      {"3E27CD3DF3ED5BCF6876248FD2C1F85A993A51781D133440BAA8DD4081446F2210FBE16CF95C1C374DD7BB07F87CE3E6071A40E7B9D3BCEA","it"},
+      {"683CCEB237A06BA6C955C154D4D11DEB755E8DE7D2539A5F1AA6B80A4AF971CF10FBE16CF95C1C3774FFA8A9AFDB3926180DB69A44423AA9","es"},
+      {"8390D212E25E878953A9990CF35984CF45E3DB7926D5523C37DEF747244E585510FBE16CF95C1C374FDF6857DE642BD5980E4981A282686C","br"},
+    };
+    auto dvdFolder=[](const std::string& l)->std::string{
+      static const std::map<std::string,std::string> F={
+        {"fr","FRANCE"},{"en","US"},{"de","DEUTSCH"},{"it","ITALIE"},
+        {"br","BRESIL"},{"ja","JAPON"},{"ko","KOREE"},{"zh","CHINE"}};
+      auto it=F.find(l); return it==F.end()? std::string() : it->second; };
+    struct Ed{ std::string cd1, fp; };
+    std::map<std::string,Ed> editions;           // lang -> CD 1 edition (+ its fp)
+    std::map<std::string,std::string> dataByFp;  // fp  -> CD 2 path
+    std::vector<std::pair<std::string,std::pair<std::string,std::string>>> dvdLangs; // lang -> (dvd, prefix)
+    for(int i=2;i<argc;i++){
+      Iso iso; if(!iso.open(argv[i])){ fprintf(stderr,"skip (cannot open): %s\n",argv[i]); continue; }
+      std::string t=detectType(iso);
+      if(t.rfind("edition",0)==0){
+        std::string lang=t.substr(8);                 // after "edition "
+        if(lang=="?"){ std::string fp=fingerprint(iso,""); if(KNOWN.count(fp)) lang=KNOWN.at(fp); }
+        editions[lang]=Ed{argv[i], fingerprint(iso,"")};
+      } else if(t=="data"){
+        dataByFp[fingerprint(iso,"")]=argv[i];
+      } else if(t.rfind("multilang",0)==0){
+        std::istringstream ss(t.substr(10)); std::string l;
+        while(ss>>l){ std::string pf=dvdFolder(l); if(!pf.empty()) dvdLangs.push_back({l,{argv[i],pf}}); }
+      }
+    }
+    std::set<std::string> usedFp;
+    for(auto& kv:editions){
+      std::string cd2 = dataByFp.count(kv.second.fp)? dataByFp[kv.second.fp] : "";
+      if(!cd2.empty()) usedFp.insert(kv.second.fp);
+      printf("LANG\t%s\t%d\tcd1=%s;cd2=%s\n", kv.first.c_str(), cd2.empty()?0:1, kv.second.cd1.c_str(), cd2.c_str());
+    }
+    // CD 2 discs with no matching CD 1: identify by fingerprint, flag incomplete.
+    for(auto& kv:dataByFp){
+      if(usedFp.count(kv.first)) continue;
+      std::string lang = KNOWN.count(kv.first)? KNOWN.at(kv.first) : "?";
+      printf("LANG\t%s\t0\tcd1=;cd2=%s\n", lang.c_str(), kv.second.c_str());
+    }
+    for(auto& d:dvdLangs)
+      printf("LANG\t%s\t1\tdvd=%s;prefix=%s\n", d.first.c_str(), d.second.first.c_str(), d.second.second.c_str());
+    return 0;
   }
   if(cmd=="build"){
     // vfimport build <game_data> [--fonts <dir>]
