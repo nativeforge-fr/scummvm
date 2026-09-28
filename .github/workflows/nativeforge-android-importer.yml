@@ -7,7 +7,7 @@ name: Native Forge — vfimport (Android ABIs)
 on:
   workflow_dispatch:
   push:
-    branches: [ ports/android-arm64 ]
+    branches: [ versailles-fork ]
     paths:
       - '.github/workflows/nativeforge-android-importer.yml'
       - 'dists/nativeforge/importer/**'

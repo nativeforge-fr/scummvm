@@ -8,7 +8,7 @@ name: Native Forge — Android APK (template)
 on:
   workflow_dispatch:
   push:
-    branches: [ ports/android-arm64 ]
+    branches: [ versailles-fork ]
     paths:
       - '.github/workflows/nativeforge-android.yml'
 

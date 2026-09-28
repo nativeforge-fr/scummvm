@@ -8,7 +8,7 @@ name: Native Forge — Linux installer (Qt AppImage)
 on:
   workflow_dispatch:
   push:
-    branches: [ ports/android-arm64 ]
+    branches: [ versailles-fork ]
     paths:
       - '.github/workflows/nativeforge-installer-linux.yml'
       - 'dists/nativeforge/installer-linux/**'

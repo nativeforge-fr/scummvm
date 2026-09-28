@@ -10,7 +10,7 @@ name: Native Forge — Linux aarch64 (AppImage)
 on:
   workflow_dispatch:
   push:
-    branches: [ ports/android-arm64 ]
+    branches: [ versailles-fork ]
     paths:
       - '.github/workflows/nativeforge-arm64.yml'
       - 'dists/nativeforge/**'
