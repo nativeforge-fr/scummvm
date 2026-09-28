@@ -1,0 +1,69 @@
+name: Native Forge — publish binaries to release
+
+# Collects the latest successful build artifacts (Android APK, game AppImages,
+# Linux installer AppImage) and attaches them to the v1.0.0 release, alongside
+# the Windows installer — one release with every platform's binaries.
+# Uses the built-in GITHUB_TOKEN (no external credentials).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the binaries to"
+        default: "v1.0.0"
+  push:
+    branches: [ versailles-fork ]
+    paths:
+      - '.github/workflows/nativeforge-publish-release.yml'
+
+permissions:
+  contents: write   # upload release assets
+  actions: read     # download artifacts from other runs
+
+jobs:
+  publish:
+    name: Attach APK + AppImages to release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Download latest Native Forge artifacts
+        run: |
+          set -e
+          mkdir -p dl
+          for wf in nativeforge-android.yml nativeforge-arm64.yml nativeforge-installer-linux.yml; do
+            rid=$(gh run list --workflow "$wf" --branch versailles-fork --status success -L 1 \
+                    --json databaseId -q '.[0].databaseId' -R "$REPO")
+            if [ -n "$rid" ]; then
+              echo "$wf -> run $rid"
+              gh run download "$rid" -D "dl/$wf" -R "$REPO" || echo "(no artifacts for $wf)"
+            else
+              echo "no successful run for $wf"
+            fi
+          done
+          echo "=== downloaded ==="; find dl -type f \( -name '*.apk' -o -name '*.AppImage' \) -print
+
+      - name: Stage user-facing binaries with clean names
+        run: |
+          set -e
+          mkdir -p out
+          apk="$(find dl -name '*.apk' | head -1)"
+          [ -n "$apk" ] && cp "$apk" "out/Versailles1685-Android-arm64.apk"
+          for v in qol original; do
+            f="$(find dl -iname "*${v}*aarch64*.AppImage" | head -1)"
+            [ -n "$f" ] && cp "$f" "out/Versailles1685-$v-aarch64.AppImage"
+          done
+          inst="$(find dl -iname '*Installer*aarch64*.AppImage' | head -1)"
+          [ -n "$inst" ] && cp "$inst" "out/Versailles1685-Installer-aarch64.AppImage"
+          echo "=== staged ==="; ls -lh out
+
+      - name: Attach to release
+        run: |
+          set -e
+          TAG="${{ github.event.inputs.tag }}"
+          [ -z "$TAG" ] && TAG="v1.0.0"
+          echo "Uploading to release $TAG"
+          gh release upload "$TAG" out/* --clobber -R "$REPO"
+          echo "Done. Assets on release $TAG:"
+          gh release view "$TAG" -R "$REPO" --json assets -q '.assets[].name'
