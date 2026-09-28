@@ -1,102 +1,92 @@
-# Versailles 1685 — Native Windows Edition
+# Versailles 1685 — Native Forge Edition · source code
 
-**A Native Forge project for modern Windows systems.**
+[![Latest release](https://img.shields.io/github/v/release/nativeforge-fr/scummvm?label=release&color=e8791e)](https://github.com/nativeforge-fr/scummvm/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](COPYING)
 
-This repository contains the source code for the Native Forge edition of **Versailles 1685 (1996, Cryo Interactive)**, based on the ScummVM `cryomni3d` engine.
+📦 **Looking for the game?** → [**Download the latest release**](https://github.com/nativeforge-fr/scummvm/releases/latest) · 🖥️ [Project page](https://github.com/nativeforge-fr/versailles-1685-native) · 🐛 [Report a bug](https://github.com/nativeforge-fr/versailles-1685-native/issues)
 
-The Native Forge release provides a streamlined native Windows experience while requiring users to supply their own original game data.
+This repository is the **source code** of the Native Forge edition of *Versailles 1685 – Complot à la Cour du Roi Soleil* (Cryo Interactive, 1996): a fork of [ScummVM](https://www.scummvm.org)'s `cryomni3d` engine, built as a standalone native edition for modern systems — no emulation.
 
-**No original Versailles 1685 game assets are distributed with this project.**
+- All Native Forge changes live on the **`versailles-fork`** branch (default), one commit per change.
+- Upstream base: [scummvm/scummvm](https://github.com/scummvm/scummvm) at commit `1645a096`.
+- Upstream README and documentation: https://github.com/scummvm/scummvm#readme
 
-> **Project:** Versailles 1685 — Native Windows Edition  
-> **Developer:** Native Forge  
-> **Current release:** v1.0.0  
-> **Platform:** Windows 11  
-> **Default branch:** `versailles-fork`  
-> **License:** GPL-3.0
+> **Unofficial, non-commercial fan project.** *Versailles 1685* © 1996 Cryo Interactive.
+> **No game data or assets are in this repository** — you need your own copy of the game.
 
-## About this fork
+*[Version française plus bas.](#français)*
 
-This project is based on ScummVM and its `cryomni3d` engine.
+## What this fork adds
 
-Native Forge maintains this fork specifically for the native Windows edition of **Versailles 1685**. The original ScummVM project information and documentation are preserved below for attribution and upstream reference.
+- **Standalone build** (`VERSAILLES_STANDALONE`): a dedicated `versailles.exe` with the Native Forge icon (the original game icon is not redistributed).
+- **16:9 widescreen**: full-width HUD, adaptive letterbox bars (solid color for logos/title screens, ambient blur for scenes), crisp menus and documentation.
+- **In-game language switching** (FR / EN / DE / ZH): separate voice and text languages, subtitles, translated menus (incl. Chinese Big5/CP950).
+- **Quality of life**: fullscreen on start, optional bilinear filtering, persistent settings.
+- **Gamepad** keymap (click, toolbar, skip).
+- **Fixes**: several crashes (toolbar over still images, language switching, message boxes, screen bounds) and display artifacts.
 
----
+## Why this instead of ScummVM?
 
-# [ScummVM README](https://www.scummvm.org/) · [![Translation status](https://translations.scummvm.org/widgets/scummvm/-/scummvm/svg-badge.svg)](https://translations.scummvm.org/engage/scummvm/?utm_source=widget) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md#pull-requests)
+ScummVM already runs Versailles — and **neither ScummVM nor this build is an emulator**: both run the game as native code reading your original data. This fork is a *specialized, packaged edition* of that engine: one-click setup, plus 16:9 widescreen and in-game language switching, which stock ScummVM does not offer. Everything the engine itself does is thanks to the ScummVM team; fixes from this fork may be contributed upstream.
 
-## About ScummVM
+## Platforms
 
-ScummVM allows you to play classic graphic point-and-click adventure games, text adventure games, and RPGs, as long as you already have the game data files. ScummVM replaces the executable files shipped with the games, which means you can now play your favorite games on all your favorite devices.
+- **Windows 10 / 11, 64-bit** — tested and supported.
+- **Android ARM64** and **Linux ARM64 (AppImage)** — experimental, untested.
 
-So how did ScummVM get its name? Many of the famous LucasArts adventure games, such as Maniac Mansion and the Monkey Island series, were created using a utility called SCUMM (Script Creation Utility for Maniac Mansion). The ‘VM’ in ScummVM stands for Virtual Machine.
+Details and files on the [release page](https://github.com/nativeforge-fr/scummvm/releases/latest).
 
-While ScummVM was originally designed to run LucasArts’ SCUMM games, over time support has been added for many other games: see the full list [on our wiki](https://wiki.scummvm.org/index.php?title=Category:Supported_Games). Noteworthy titles include Broken Sword, Myst and Blade Runner, although there are countless other hidden gems to explore.
+## Building
 
-For more information, compatibility lists, details on donating, the
-latest release, progress reports and more, please visit the ScummVM [home
-page](https://www.scummvm.org/).
+Standalone Windows build via MSYS2 / MinGW-w64, with the `cryomni3d` engine and the `VERSAILLES_STANDALONE` flag. See ScummVM's build documentation ([`doc/`](doc), `./configure --help`) for the base toolchain. Game data must come from your own CD / ISO of *Versailles 1685*.
 
-## Quickstart
+## License
 
-For the impatient among you, here is how to get ScummVM running in five simple steps.
-
-1. Download ScummVM from [our website](https://www.scummvm.org/downloads/) and install it.
-
-2. Create a directory on your hard drive and copy the game datafiles from the original media to this directory. Repeat this for every game you want to play.
-
-3. Start ScummVM, choose 'Add game', select the directory containing the game datafiles (do not try to select the datafiles themselves!) and press Choose.
-
-4. The Game Options dialog opens to allow configuration of various settings for the game. These can be reconfigured at any time, but for now everything should be OK at the default settings.
-
-5. Select the game you want to play in the list, and press Start. To play a game next time, skip to step 5, unless you want to add more games.
-
-> Hint:
->
-> To add multiple games in one go, click the small arrow on the 'Add game' button and choose 'Mass Add'. You are again asked to select a directory, only this time ScummVM will search through all subdirectories for supported games.
-
-## Reporting a bug
-
-To report a bug, go to the ScummVM [Issue Tracker](https://bugs.scummvm.org/) and log in with your GitHub account.
-
-Please make sure the bug is reproducible, and still occurs in the latest git/[Daily build](https://buildbot.scummvm.org/#/dailybuilds) version. Also check the [compatibility list](https://www.scummvm.org/compatibility/) for that game, to ensure the issue is not already known. Please do not report bugs for games that are not listed as completable on the [Supported Games](https://wiki.scummvm.org/index.php?title=Category:Supported_Games) wiki page, or on the compatibility list. We already know those games have bugs!
-
-Please include the following information in the bug report:
-
-- ScummVM version (test the latest git/[Daily build](https://buildbot.scummvm.org/#/dailybuilds))
-- Bug details, including instructions for how to reproduce the bug. If possible, include log files, screenshots, and any other relevant information.
-- Game language
-- Game version (for example, talkie or floppy)
-- Platform and Compiler (for example, Win32, Linux or FreeBSD)
-- An attached saved game, if possible.
-- If this bug only occurred recently, include the last version without the bug, and the first version with the bug. That way we can fix it quicker by looking at the changes made.
-
-Finally, please report each issue separately; do not file multiple issues on the same ticket. It is difficult to track the status of each individual bug when they aren't on their own tickets.
-
-## Documentation
-
-### User documentation
-
-For everything you need to know about how to use ScummVM, see our [user documentation](https://docs.scummvm.org/).
-
-### The ScummVM Wiki
-
-[The wiki](https://wiki.scummvm.org/) is the place to go for information about every game supported by ScummVM. If you're a developer, there's also some very handy information in the Developer section.
-
-### Changelog
-
-Our extensive change log is available [here](NEWS.md).
-
-## SAST Tools
-
-[PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=github&utm_medium=organic&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
+**GPL-3.0** — see [COPYING](COPYING). This repository is the complete corresponding source code of the binaries distributed by Native Forge (GPL v3, section 6).
 
 ## Credits
 
-A massive thank you to the entire team for making the ScummVM project possible. See the credits [here](AUTHORS)!
+- **ScummVM Team** — `cryomni3d` engine and the ScummVM framework (see [AUTHORS](AUTHORS)).
+- **Cryo Interactive** — the original *Versailles 1685* (© 1996).
+- **Native Forge** — this edition. ☕ Support: https://ko-fi.com/nativeforge
 
 ---
 
-> Good Luck and Happy Adventuring!  
-> The ScummVM team.  
-> <https://www.scummvm.org/>
+# Français
+
+# Versailles 1685 — Édition Native Forge · code source
+
+📦 **Tu cherches le jeu ?** → [**Télécharger la dernière release**](https://github.com/nativeforge-fr/scummvm/releases/latest) · 🖥️ [Page du projet](https://github.com/nativeforge-fr/versailles-1685-native) · 🐛 [Signaler un bug](https://github.com/nativeforge-fr/versailles-1685-native/issues)
+
+Ce dépôt contient le **code source** de l'édition Native Forge de *Versailles 1685 – Complot à la Cour du Roi Soleil* (Cryo Interactive, 1996) : un fork du moteur `cryomni3d` de [ScummVM](https://www.scummvm.org), compilé en édition native autonome pour les systèmes modernes — sans émulation.
+
+- Toutes les modifications Native Forge sont sur la branche **`versailles-fork`** (par défaut), un commit par changement.
+- Base upstream : [scummvm/scummvm](https://github.com/scummvm/scummvm), commit `1645a096`.
+
+> **Projet de fan non officiel et non commercial.** *Versailles 1685* © 1996 Cryo Interactive.
+> **Aucune donnée ni asset du jeu dans ce dépôt** — il faut posséder sa propre copie du jeu.
+
+## Ce que ce fork ajoute
+
+- **Build autonome** (`VERSAILLES_STANDALONE`) : un `versailles.exe` dédié avec l'icône Native Forge (l'icône d'origine du jeu n'est pas redistribuée).
+- **Écran large 16:9** : HUD pleine largeur, barres letterbox adaptatives, menus et espace documentaire nets.
+- **Changement de langue en jeu** (FR / EN / DE / ZH) : voix et textes séparés, sous-titres, menus traduits (dont le chinois Big5/CP950).
+- **Confort** : plein écran au démarrage, filtrage bilinéaire optionnel, réglages persistants.
+- **Manette** : keymap dédié (clic, toolbar, skip).
+- **Corrections** : plusieurs crashs et artefacts d'affichage.
+
+## Pourquoi cette version plutôt que ScummVM ?
+
+ScummVM fait déjà tourner Versailles — et **ni ScummVM ni ce build ne sont de l'émulation** : les deux exécutent le jeu en code natif qui lit tes données d'origine. Ce fork est une *édition spécialisée et packagée* de ce moteur : installation en un clic, plus l'écran large 16:9 et le changement de langue en jeu, absents de ScummVM standard. Le moteur lui-même est le travail de l'équipe ScummVM ; les correctifs de ce fork pourront être proposés en amont.
+
+## Compiler
+
+Build Windows autonome via MSYS2 / MinGW-w64, avec le moteur `cryomni3d` et le drapeau `VERSAILLES_STANDALONE`. Voir la documentation de build de ScummVM ([`doc/`](doc), `./configure --help`). Les données du jeu doivent provenir de ton propre CD / ISO.
+
+## Licence
+
+**GPL-3.0** — voir [COPYING](COPYING). Ce dépôt est le code source correspondant complet des binaires distribués par Native Forge (GPL v3, section 6).
+
+## Crédits
+
+**ScummVM Team** (moteur, voir [AUTHORS](AUTHORS)) · **Cryo Interactive** (jeu d'origine, © 1996) · **Native Forge** (cette édition). ☕ Soutenir : https://ko-fi.com/nativeforge
